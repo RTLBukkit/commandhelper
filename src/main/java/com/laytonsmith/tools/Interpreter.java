@@ -1,9 +1,9 @@
 package com.laytonsmith.tools;
 
-import com.laytonsmith.PureUtilities.ClassDiscovery;
-import com.laytonsmith.PureUtilities.ClassDiscoveryCache;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscoveryCache;
 import com.laytonsmith.PureUtilities.DaemonManager;
-import com.laytonsmith.PureUtilities.FileUtility;
+import com.laytonsmith.PureUtilities.Common.FileUtil;
 import com.laytonsmith.PureUtilities.RunnableQueue;
 import com.laytonsmith.PureUtilities.TermColors;
 import static com.laytonsmith.PureUtilities.TermColors.*;
@@ -19,9 +19,11 @@ import com.laytonsmith.abstraction.MCItemStack;
 import com.laytonsmith.abstraction.MCLocation;
 import com.laytonsmith.abstraction.MCNote;
 import com.laytonsmith.abstraction.MCPluginMeta;
+import com.laytonsmith.abstraction.MCRecipe;
 import com.laytonsmith.abstraction.MCServer;
 import com.laytonsmith.abstraction.MCWorld;
 import com.laytonsmith.abstraction.blocks.MCMaterial;
+import com.laytonsmith.abstraction.enums.MCRecipeType;
 import com.laytonsmith.abstraction.enums.MCTone;
 import com.laytonsmith.annotations.convert;
 import com.laytonsmith.commandhelper.CommandHelperPlugin;
@@ -47,6 +49,7 @@ import com.laytonsmith.core.exceptions.CancelCommandException;
 import com.laytonsmith.core.exceptions.ConfigCompileException;
 import com.laytonsmith.core.exceptions.ConfigRuntimeException;
 import com.laytonsmith.core.profiler.ProfilePoint;
+import com.laytonsmith.database.Profiles;
 import com.laytonsmith.persistance.DataSourceException;
 import java.io.File;
 import java.io.IOException;
@@ -77,11 +80,11 @@ public class Interpreter {
 	static String script;
 	private static Environment env;
 	
-	public static void startWithTTY(String file, List<String> args) throws IOException, DataSourceException, URISyntaxException{
+	public static void startWithTTY(String file, List<String> args) throws IOException, DataSourceException, URISyntaxException, Profiles.InvalidProfileException{
 		doStartup();
 		try{
 			File fromFile = new File(file).getCanonicalFile();
-			execute(FileUtility.read(fromFile), args, fromFile);
+			execute(FileUtil.read(fromFile), args, fromFile);
 		} catch(ConfigCompileException ex){
 			ConfigRuntimeException.React(ex, null, null);
 			System.out.println(TermColors.reset());
@@ -96,7 +99,7 @@ public class Interpreter {
 	 * @throws DataSourceException
 	 * @throws URISyntaxException 
 	 */
-	public static void start(List<String> args) throws IOException, DataSourceException, URISyntaxException {
+	public static void start(List<String> args) throws IOException, DataSourceException, URISyntaxException, Profiles.InvalidProfileException {
 		doStartup();
 		Scanner scanner = new Scanner(System.in);
 		if (System.console() != null) {
@@ -137,7 +140,7 @@ public class Interpreter {
 		}
 	}
 	
-	private static void doStartup() throws IOException, DataSourceException, URISyntaxException{
+	private static void doStartup() throws IOException, DataSourceException, URISyntaxException, Profiles.InvalidProfileException{
 		MethodScriptFileLocations.getDefault().getCacheDirectory().mkdirs();
 		ClassDiscoveryCache cdc = new ClassDiscoveryCache(MethodScriptFileLocations.getDefault().getCacheDirectory());
 		cdc.setLogger(Logger.getLogger(Interpreter.class.getName()));
@@ -204,9 +207,13 @@ public class Interpreter {
 			fromFile = new File("Interpreter");
 		}
 		ProfilePoint compile = env.getEnv(GlobalEnv.class).GetProfiler().start("Compilation", LogLevel.VERBOSE);
-		List<Token> stream = MethodScriptCompiler.lex(script, fromFile, true);
-		ParseTree tree = MethodScriptCompiler.compile(stream);
-		compile.stop();
+		ParseTree tree;
+		try {
+			List<Token> stream = MethodScriptCompiler.lex(script, fromFile, true);
+			tree = MethodScriptCompiler.compile(stream);
+		} finally {
+			compile.stop();
+		}
 		Environment env = Environment.createEnvironment(Interpreter.env.getEnv(GlobalEnv.class));
 		env.getEnv(GlobalEnv.class).SetCustom("cmdline", true);
 		List<Variable> vars = null;
@@ -218,19 +225,24 @@ public class Interpreter {
 			//uncommon use of it.
 			StringBuilder finalArgument = new StringBuilder();
 			CArray arguments = new CArray(Target.UNKNOWN);
+			{
+				//Set the $0 argument
+				Variable v = new Variable("$0", "", Target.UNKNOWN);
+				v.setVal(fromFile.toString());
+				v.setDefault(fromFile.toString());
+				vars.add(v);
+			}
 			for (int i = 0; i < args.size(); i++) {
 				String arg = args.get(i);
 				if (i > 1) {
 					finalArgument.append(" ");
 				}
-				Variable v = new Variable("$" + Integer.toString(i), "", Target.UNKNOWN);
+				Variable v = new Variable("$" + Integer.toString(i + 1), "", Target.UNKNOWN);
 				v.setVal(new CString(arg, Target.UNKNOWN));
 				v.setDefault(arg);
 				vars.add(v);
-				if (i != 0) {
-					finalArgument.append(arg);
-					arguments.push(new CString(arg, Target.UNKNOWN));
-				}
+				finalArgument.append(arg);
+				arguments.push(new CString(arg, Target.UNKNOWN));
 			}
 			Variable v = new Variable("$", "", false, true, Target.UNKNOWN);
 			v.setVal(new CString(finalArgument.toString(), Target.UNKNOWN));
@@ -240,27 +252,16 @@ public class Interpreter {
 		}
 		try {
 			ProfilePoint p = Interpreter.env.getEnv(GlobalEnv.class).GetProfiler().start("Interpreter Script", LogLevel.ERROR);
-			MethodScriptCompiler.execute(tree, env, new MethodScriptComplete() {
-				public void done(String output) {
-					//Do nothing
-//					output = output.trim();
-//					if (output.isEmpty()) {
-//						if (System.console() != null) {
-//							pl(":");
-//						}
-//					} else {
-//						if (output.startsWith("/")) {
-//							//Run the command
-//							pl((System.console() != null ? ":" + YELLOW : "") + output);
-//						} else {
-//							//output the results
-//							pl((System.console() != null ? ":" + GREEN : "") + output);
-//						}
-//					}
-				}
-			}, null, vars);
-			env.getEnv(GlobalEnv.class).GetDaemonManager().waitForThreads();
-			p.stop();
+			try {
+				MethodScriptCompiler.execute(tree, env, new MethodScriptComplete() {
+					public void done(String output) {
+						//Do nothing
+					}
+				}, null, vars);
+				env.getEnv(GlobalEnv.class).GetDaemonManager().waitForThreads();
+			} finally {
+				p.stop();
+			}
 		} catch (CancelCommandException e) {
 			if (System.console() != null) {
 				pl(":");
@@ -303,7 +304,7 @@ public class Interpreter {
 				if (!exe.canWrite()) {
 					throw new IOException();
 				}
-				FileUtility.write(bashScript, exe);
+				FileUtil.write(bashScript, exe);
 				exe.setExecutable(true, false);
 			} catch (IOException e) {
 				System.err.println("Cannot install. You must run the command with sudo for it to succeed, however, did you do that?");
@@ -491,6 +492,15 @@ public class Interpreter {
 		public List<MCEntity> GetEntitiesAt(MCLocation loc, double radius) {
 			throw new UnsupportedOperationException("This method is not supported from a shell.");
 		}
-		
+
+		@Override
+		public MCRecipe GetNewRecipe(MCRecipeType type, MCItemStack result) {
+			throw new UnsupportedOperationException("This method is not supported from a shell.");
+		}
+
+		@Override
+		public MCRecipe GetRecipe(MCRecipe unspecific) {
+			throw new UnsupportedOperationException("This method is not supported from a shell.");
+		}
 	}
 }

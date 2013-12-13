@@ -1353,7 +1353,7 @@ public final class MethodScriptCompiler {
 				} catch(Exception e){
 					//
 				}
-				Procedure myProc = DataHandling.proc.getProcedure(Target.UNKNOWN, env, fakeScript, children.toArray(new ParseTree[children.size()]));
+				Procedure myProc = DataHandling.proc.getProcedure(tree.getTarget(), env, fakeScript, children.toArray(new ParseTree[children.size()]));
 				procs.peek().add(myProc); //Yep. So, we can move on with our lives now, and if it's used later, it could possibly be static.
 			} catch (ConfigRuntimeException e) {
 				//Well, they have an error in there somewhere
@@ -1477,8 +1477,13 @@ public final class MethodScriptCompiler {
 			}
 			for (Construct tempNode : root.getAllData()) {
 				if (tempNode instanceof Variable) {
-					((Variable) tempNode).setVal(
-							varMap.get(((Variable) tempNode).getName()).getDefault());
+					Variable vv = varMap.get(((Variable) tempNode).getName());
+					if(vv != null){
+						((Variable) tempNode).setVal(vv.getDefault());
+					} else {
+						//The variable is unset. I'm not quite sure what cases would cause this
+						((Variable) tempNode).setVal("");
+					}
 				}
 			}
 		}

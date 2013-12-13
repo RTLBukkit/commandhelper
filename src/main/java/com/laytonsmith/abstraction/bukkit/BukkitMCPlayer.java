@@ -2,8 +2,8 @@
 
 package com.laytonsmith.abstraction.bukkit;
 
-import com.laytonsmith.PureUtilities.ClassDiscovery;
-import com.laytonsmith.PureUtilities.ReflectionUtils;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
+import com.laytonsmith.PureUtilities.Common.ReflectionUtils;
 import com.laytonsmith.abstraction.*;
 import com.laytonsmith.abstraction.enums.MCInstrument;
 import com.laytonsmith.abstraction.enums.MCSound;
@@ -219,6 +219,10 @@ public class BukkitMCPlayer extends BukkitMCHumanEntity implements MCPlayer, MCC
     public boolean isSneaking() {
         return p.isSneaking();
     }
+	
+	public boolean isSprinting() {
+		return p.isSprinting();
+	}
 
     public boolean isWhitelisted() {
         return p.isWhitelisted();

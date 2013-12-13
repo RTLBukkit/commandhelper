@@ -2,6 +2,7 @@
 
 package com.laytonsmith.core.events;
 
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
 import com.laytonsmith.core.LogLevel;
 import com.laytonsmith.core.Script;
 import com.laytonsmith.core.constructs.CArray;
@@ -12,6 +13,7 @@ import com.laytonsmith.core.environments.GlobalEnv;
 import com.laytonsmith.core.exceptions.ConfigRuntimeException;
 import com.laytonsmith.core.exceptions.EventException;
 import com.laytonsmith.core.profiler.ProfilePoint;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,7 +41,7 @@ public abstract class AbstractEvent implements Event, Comparable<Event> {
      * can be done here. By default, an UnsupportedOperationException is thrown,
      * but is caught and ignored.
      */
-    public void bind(Map<String, Construct> prefilters) {
+    public void bind(BoundEvent event) {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
@@ -67,9 +69,12 @@ public abstract class AbstractEvent implements Event, Comparable<Event> {
 		if(env.getEnv(GlobalEnv.class).GetProfiler() != null){
 			event = env.getEnv(GlobalEnv.class).GetProfiler().start("Event " + b.getEventName() + " (defined at " + b.getTarget().toString() + ")", LogLevel.ERROR);
 		}
-        s.run(null, env, null);
-		if(event != null){
-			event.stop();
+		try {
+			s.run(null, env, null);
+		} finally {
+			if(event != null){
+				event.stop();
+			}
 		}
         try{
             this.postExecution(env, activeEvent);
@@ -78,12 +83,28 @@ public abstract class AbstractEvent implements Event, Comparable<Event> {
         }
     }
     
+	/**
+	 * This method is called before the event handling code is run, and provides a place
+	 * for the event code itself to modify the environment or active event data.
+	 * @param env The environment, at the time just before the event handler is called.
+	 * @param activeEvent The event handler code.
+	 * @throws UnsupportedOperationException If the preExecution isn't supported, this may
+	 * be thrown, and it will be ignored.
+	 */
     public void preExecution(Environment env, BoundEvent.ActiveEvent activeEvent){
-        throw new UnsupportedOperationException();
+        
     }
     
+	/**
+	 * This method is called after the event handling code is run, and provides a place
+	 * for the event code itself to modify or cleanup the environment or active event data.
+	 * @param env The environment, at the time just before the event handler is called.
+	 * @param activeEvent The event handler code.
+	 * @throws UnsupportedOperationException If the preExecution isn't supported, this may
+	 * be thrown, and it will be ignored.
+	 */
     public void postExecution(Environment env, BoundEvent.ActiveEvent activeEvent){
-        throw new UnsupportedOperationException();
+        
     }
 
     /**
@@ -144,7 +165,10 @@ public abstract class AbstractEvent implements Event, Comparable<Event> {
     public boolean isCancelled(BindableEvent o) {
         return mixin.isCancelled(o);
     }
-        
-    
+
+	@Override
+	public URL getSourceJar() {
+		return ClassDiscovery.GetClassContainer(this.getClass());
+	}
     
 }

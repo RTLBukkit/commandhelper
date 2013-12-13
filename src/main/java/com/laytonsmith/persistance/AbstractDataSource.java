@@ -1,13 +1,14 @@
 package com.laytonsmith.persistance;
 
 import com.laytonsmith.PureUtilities.DaemonManager;
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.annotations.datasource;
 import com.laytonsmith.persistance.io.ConnectionMixin;
 import com.laytonsmith.persistance.io.ConnectionMixinFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -139,7 +140,8 @@ public abstract class AbstractDataSource implements DataSource {
 		Set<String[]> list = new HashSet<String[]>();
 		String ns = StringUtils.Join(namespace, ".");
 		for (String key : stringKeySet()) {
-			if (key.matches(Pattern.quote(ns) + "(?:$|\\..*)")) {
+			if ("".equals(ns) //Blank string; this means they want it to always match.
+					|| key.matches(Pattern.quote(ns) + "(?:$|\\..*)")) {
 				String[] split = key.split("\\.");
 				list.add(split);
 			}
@@ -307,4 +309,10 @@ public abstract class AbstractDataSource implements DataSource {
 		b.append(uri.toString());
 		return b.toString();
 	}
+
+	@Override
+	public URL getSourceJar() {
+		throw new UnsupportedOperationException("TODO: Not supported yet.");
+	}
+	
 }

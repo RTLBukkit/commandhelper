@@ -2,7 +2,7 @@
 
 package com.laytonsmith.core;
 
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.TermColors;
 import com.laytonsmith.abstraction.Implementation;
 import com.laytonsmith.abstraction.MCCommandSender;
@@ -127,9 +127,8 @@ public class Script {
                     //Oh well, we tried to get more information
                 }
             }
-            throw new ConfigRuntimeException("Unable to run command, script not yet compiled, or a compiler error occured for that command."
-                    + " To see the compile error, run /reloadaliases",
-                    null, target);
+            throw ConfigRuntimeException.CreateUncatchableException("Unable to run command, script not yet compiled, or a compiler error occured for that command."
+                    + " To see the compile error, run /reloadaliases", target);
         }
         if (p instanceof MCPlayer) {
             if (CurrentEnv.getEnv(GlobalEnv.class).GetLabel() != null) {
@@ -233,10 +232,14 @@ public class Script {
                     Environment newEnv = env;
                     try{
                         newEnv = env.clone();
-                    } catch(Exception e){}
+                    } catch(CloneNotSupportedException e){}
 					ProfilePoint pp = env.getEnv(GlobalEnv.class).GetProfiler().start(m.val() + " execution", LogLevel.INFO);
-                    Construct ret = p.cexecute(c.getChildren(), newEnv, m.getTarget());
-					pp.stop();					
+                    Construct ret;
+					try {
+						ret = p.cexecute(c.getChildren(), newEnv, m.getTarget());
+					} finally {
+						pp.stop();
+					}
 					return ret;
                 }
                 final Function f;
@@ -254,9 +257,13 @@ public class Script {
 						if(f.shouldProfile() && env.getEnv(GlobalEnv.class).GetProfiler() != null && env.getEnv(GlobalEnv.class).GetProfiler().isLoggable(f.profileAt())){
 							p = env.getEnv(GlobalEnv.class).GetProfiler().start(f.profileMessageS(c.getChildren()), f.profileAt());
 						}
-						Construct ret = f.execs(m.getTarget(), env, this, c.getChildren().toArray(new ParseTree[]{}));
-						if(p != null){
-							p.stop();
+						Construct ret;
+						try {
+							ret = f.execs(m.getTarget(), env, this, c.getChildren().toArray(new ParseTree[]{}));
+						} finally { 
+							if(p != null){
+								p.stop();
+							}
 						}
 						return ret;
 					}
@@ -298,9 +305,13 @@ public class Script {
 						if(f.shouldProfile() && env.getEnv(GlobalEnv.class).GetProfiler() != null && env.getEnv(GlobalEnv.class).GetProfiler().isLoggable(f.profileAt())){						
 							p = env.getEnv(GlobalEnv.class).GetProfiler().start(f.profileMessage(ca), f.profileAt());
 						}
-						Construct ret = f.exec(m.getTarget(), env, ca);
-						if(p != null){
-							p.stop();
+						Construct ret;
+						try {
+							ret = f.exec(m.getTarget(), env, ca);
+						} finally {
+							if(p != null){
+								p.stop();
+							}
 						}
 						return ret;
 					}

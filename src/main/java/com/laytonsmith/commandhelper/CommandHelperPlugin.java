@@ -18,15 +18,17 @@
  */
 package com.laytonsmith.commandhelper;
 
-import com.laytonsmith.PureUtilities.ClassDiscovery;
-import com.laytonsmith.PureUtilities.ClassDiscoveryCache;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscoveryCache;
 import com.laytonsmith.PureUtilities.ExecutionQueue;
-import com.laytonsmith.PureUtilities.FileUtility;
+import com.laytonsmith.PureUtilities.Common.FileUtil;
 import com.laytonsmith.PureUtilities.SimpleVersion;
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.TermColors;
 import com.laytonsmith.abstraction.*;
+import com.laytonsmith.abstraction.bukkit.BukkitConvertor;
 import com.laytonsmith.abstraction.bukkit.BukkitMCBlockCommandSender;
+import com.laytonsmith.abstraction.bukkit.BukkitMCCommand;
 import com.laytonsmith.abstraction.bukkit.BukkitMCPlayer;
 import com.laytonsmith.abstraction.enums.MCChatColor;
 import com.laytonsmith.core.*;
@@ -37,13 +39,13 @@ import com.laytonsmith.core.profiler.Profiler;
 import com.laytonsmith.persistance.DataSourceException;
 import com.laytonsmith.persistance.PersistanceNetwork;
 import com.laytonsmith.persistance.ReadOnlyException;
-import com.laytonsmith.persistance.io.ConnectionMixinFactory;
 import com.sk89q.wepif.PermissionsResolverManager;
 import com.sk89q.worldedit.bukkit.WorldEditPlugin;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -85,6 +87,7 @@ public class CommandHelperPlugin extends JavaPlugin {
 	public PermissionsResolver permissionsResolver;
 	public PersistanceNetwork persistanceNetwork;
 	public boolean firstLoad = true;
+	public long interpreterUnlockedUntil = 0;
 	/**
 	 * Listener for the plugin system.
 	 */
@@ -149,7 +152,7 @@ public class CommandHelperPlugin extends JavaPlugin {
 					Prefs.SetColors();
 					Logger.getLogger("Minecraft").log(Level.INFO, 
 							TermColors.YELLOW + "[" + Implementation.GetServerType().getBranding() + "] Old preferences.txt file detected. Moving preferences.txt to preferences.ini." + TermColors.reset());
-					FileUtility.copy(oldPreferences, CommandHelperFileLocations.getDefault().getPreferencesFile(), true);
+					FileUtil.copy(oldPreferences, CommandHelperFileLocations.getDefault().getPreferencesFile(), true);
 					oldPreferences.deleteOnExit();
 				} catch (IOException ex) {
 					Logger.getLogger(CommandHelperPlugin.class.getName()).log(Level.SEVERE, null, ex);
@@ -234,7 +237,7 @@ public class CommandHelperPlugin extends JavaPlugin {
 				script_name), CommandHelperFileLocations.getDefault().getLocalPackagesDirectory(),
 				CommandHelperFileLocations.getDefault().getPreferencesFile(), new File(CommandHelperFileLocations.getDefault().getConfigDirectory(),
 				main_file), permissionsResolver, this);
-		ac.reload(null);
+		ac.reload(null, null);
 
 		//Clear out our hostname cache
 		hostnameLookupCache = new ConcurrentHashMap<String, String>();
@@ -296,6 +299,13 @@ public class CommandHelperPlugin extends JavaPlugin {
 	public void registerEvent(Listener listener) {
 		getServer().getPluginManager().registerEvents(listener, this);
 	}
+	
+	@Override
+	public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+		MCCommandSender mcsender = BukkitConvertor.BukkitGetCorrectSender(sender);
+		MCCommand cmd = new BukkitMCCommand(command);
+		return cmd.handleTabComplete(mcsender, alias, args);
+	}
 
 	/**
 	 * Called when a command registered by this plugin is received.
@@ -307,14 +317,15 @@ public class CommandHelperPlugin extends JavaPlugin {
 	 */
 	@Override
 	public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args) {
+		String cmdName = cmd.getName().toLowerCase();
 		if ((sender.isOp() || (sender instanceof Player && (permissionsResolver.hasPermission(((Player) sender).getName(), "commandhelper.reloadaliases")
 				|| permissionsResolver.hasPermission(((Player) sender).getName(), "ch.reloadaliases"))))
-				&& (cmd.getName().equals("reloadaliases") || cmd.getName().equals("reloadalias") || cmd.getName().equals("recompile"))) {
+				&& (cmdName.equals("reloadaliases") || cmdName.equals("reloadalias") || cmdName.equals("recompile"))) {
 			MCPlayer player = null;
 			if (sender instanceof Player) {
 				player = new BukkitMCPlayer((Player) sender);
 			}
-			ac.reload(player);
+			ac.reload(player, args);
 //            if(ac.reload(player)){
 //                if(sender instanceof Player){
 //                    Static.SendMessage(player, MCChatColor.GOLD + "Command Helper scripts sucessfully recompiled.");
@@ -327,9 +338,9 @@ public class CommandHelperPlugin extends JavaPlugin {
 //                System.out.println(TermColors.RED + "An error occured when trying to compile the script. Check the console for more information." + TermColors.reset());
 //            }
 			return true;
-		} else if (cmd.getName().equals("commandhelper") && args.length >= 1 && args[0].equalsIgnoreCase("null")) {
+		} else if (cmdName.equals("commandhelper") && args.length >= 1 && args[0].equalsIgnoreCase("null")) {
 			return true;
-		} else if (cmd.getName().equals("runalias")) {
+		} else if (cmdName.equals("runalias")) {
 			//Hardcoded alias rebroadcast
 			if (sender instanceof Player) {
 				PlayerCommandPreprocessEvent pcpe = new PlayerCommandPreprocessEvent((Player) sender, StringUtils.Join(args, " "));
@@ -347,9 +358,21 @@ public class CommandHelperPlugin extends JavaPlugin {
 				Static.getAliasCore().alias(cmd2, s, new ArrayList<Script>());
 			}
 			return true;
-		} else if (sender instanceof Player) {
+		} else if(cmdName.equalsIgnoreCase("interpreter-on")){
+			if(sender instanceof ConsoleCommandSender){
+				int interpreterTimeout = Prefs.InterpreterTimeout();
+				if(interpreterTimeout != 0){
+					interpreterUnlockedUntil = (interpreterTimeout * 60 * 1000) + System.currentTimeMillis();
+					sender.sendMessage("Inpterpreter mode unlocked for " + interpreterTimeout + " minute" + (interpreterTimeout==1?"":"s"));
+				}
+			} else {
+				sender.sendMessage("This command can only be run from console.");
+			}
+			return true;
+		} else if (sender instanceof Player && java.util.Arrays.asList(new String[]{"commandhelper", "repeat",
+				"viewalias", "delalias", "interpreter"}).contains(cmdName)) {
 			try {
-				return runCommand(new BukkitMCPlayer((Player) sender), cmd.getName(), args);
+				return runCommand(new BukkitMCPlayer((Player) sender), cmdName, args);
 			} catch (DataSourceException ex) {
 				Logger.getLogger(CommandHelperPlugin.class.getName()).log(Level.SEVERE, null, ex);
 			} catch (ReadOnlyException ex) {
@@ -359,7 +382,9 @@ public class CommandHelperPlugin extends JavaPlugin {
 			}
 			return true;
 		} else {
-			return false;
+			MCCommandSender mcsender = BukkitConvertor.BukkitGetCorrectSender(sender);
+			MCCommand mccmd = new BukkitMCCommand(cmd);
+			return mccmd.handleCustomCommand(mcsender, commandLabel, args);
 		}
 	}
 
@@ -472,6 +497,15 @@ public class CommandHelperPlugin extends JavaPlugin {
 		} else if (cmd.equalsIgnoreCase("interpreter")) {
 			if (permissionsResolver.hasPermission(player.getName(), "commandhelper.interpreter")) {
 				if (Prefs.EnableInterpreter()) {
+					if(Prefs.InterpreterTimeout() != 0){
+						if(interpreterUnlockedUntil < System.currentTimeMillis()){
+							player.sendMessage(MCChatColor.RED + "Interpreter mode is currently locked. Run \"interpreter-on\" from console to unlock it."
+									+ " If you want to turn this off entirely, set the interpreter-timeout option to 0 in " 
+									+ CommandHelperFileLocations.getDefault().getPreferencesFile().getName());
+							commandRunning.remove(player); 
+							return true;
+						}
+					}
 					interpreterListener.startInterpret(player.getName());
 					Static.SendMessage(player, MCChatColor.YELLOW + "You are now in interpreter mode. Type a dash (-) on a line by itself to exit, and >>> to enter"
 							+ " multiline mode.");
@@ -483,7 +517,7 @@ public class CommandHelperPlugin extends JavaPlugin {
 			}
 			commandRunning.remove(player);
 			return true;
-		}
+		} 
 		commandRunning.remove(player);
 		return false;
 	}

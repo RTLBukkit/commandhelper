@@ -1,12 +1,13 @@
-
-
 package com.laytonsmith.core.events.drivers;
 
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.abstraction.MCItemStack;
 import com.laytonsmith.abstraction.StaticLayer;
 import com.laytonsmith.abstraction.blocks.MCBlock;
 import com.laytonsmith.abstraction.blocks.MCBlockState;
+import com.laytonsmith.abstraction.blocks.MCMaterial;
 import com.laytonsmith.abstraction.bukkit.BukkitMCItemStack;
+import com.laytonsmith.abstraction.enums.MCIgniteCause;
 import com.laytonsmith.abstraction.events.*;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.core.*;
@@ -355,11 +356,12 @@ public class BlockEvents {
             return "{type: <string match> | data: <string match>} "
                     + "This event is called when a block is burned. "
                     + "Cancelling the event cancels the burn. "
-                    + "block: An array with "
+					+ "{block: An array with "
                     + "keys 'type' (int), 'data' (int), 'X' (int), 'Y' (int), 'Z' (int) "
                     + "and 'world' (string) for the physical location of the block | "
-                    + "location: the locationArray of this block | drops | xp} "
-                    + "{block}";
+                    + "location: the locationArray of this block} "
+					+ "{block}"
+					+ "{block|location}";
         }
 
         public CHVersion since() {
@@ -431,7 +433,7 @@ public class BlockEvents {
             blk.set("world", new CString(event.getBlock().getWorld().getName(), Target.UNKNOWN), Target.UNKNOWN);
 
             map.put("block", blk);
-			
+
 			CArray location = ObjectGenerator.GetGenerator()
 					.location(StaticLayer.GetLocation(event.getBlock().getWorld(), event.getBlock().getX(), event.getBlock().getY(), event.getBlock().getZ()));
 			map.put("location", location);
@@ -448,6 +450,90 @@ public class BlockEvents {
             return false;
         }
     }
+
+	@api
+	public static class block_ignite extends AbstractEvent {
+
+		@Override
+		public String getName() {
+			return "block_ignite";
+		}
+
+		@Override
+		public String docs() {
+			return "{player: <string match> | cause: <macro> | world: <macro>} "
+					+ "This event is called when a block or entity is ignited."
+					+ "{player: The player's name | ignitingentity: entity ID, if entity is ignited | ignitingblock:"
+					+ " block ID, if block is ignited | location: the locationArray of block or entity | cause:"
+					+ " the cause of ignition, one of: " + StringUtils.Join(MCIgniteCause.values(), ", ") + "}"
+					+ "{}"
+					+ "{player|cause|world}";
+		}
+
+		@Override
+		public CHVersion since() {
+			return CHVersion.V3_3_1;
+		}
+
+		@Override
+		public Driver driver() {
+			return Driver.BLOCK_IGNITE;
+		}
+
+		@Override
+		public boolean matches(Map<String, Construct> prefilter, BindableEvent e)
+				throws PrefilterNonMatchException {
+			if (e instanceof MCBlockIgniteEvent) {
+				MCBlockIgniteEvent event = (MCBlockIgniteEvent) e;
+
+				if (event.getPlayer() != null) {
+					Prefilters.match(prefilter, "player", event.getPlayer().getName(), Prefilters.PrefilterType.MACRO);
+				}
+
+				Prefilters.match(prefilter, "cause", event.getCause().name(), Prefilters.PrefilterType.MACRO);
+				Prefilters.match(prefilter, "world", event.getBlock().getWorld().getName(), Prefilters.PrefilterType.STRING_MATCH);
+			}
+
+			return true;
+		}
+
+		@Override
+		public BindableEvent convert(CArray manualObject) {
+			return null;
+		}
+
+		@Override
+		public Map<String, Construct> evaluate(BindableEvent e) throws EventException {
+			if (e instanceof MCBlockIgniteEvent) {
+				MCBlockIgniteEvent event = (MCBlockIgniteEvent) e;
+				Map<String, Construct> map = evaluate_helper(e);
+
+				if (event.getPlayer() != null) {
+					map.put("player", new CString(event.getPlayer().getName(), Target.UNKNOWN));
+				}
+
+				if (event.getIgnitingEntity() != null) {
+					map.put("ignitingentity", new CInt(event.getIgnitingEntity().getEntityId(), Target.UNKNOWN));
+				}
+
+				if (event.getIgnitingBlock() != null) {
+					map.put("ignitingblock", new CInt(event.getIgnitingBlock().getTypeId(), Target.UNKNOWN));
+				}
+
+				map.put("location", ObjectGenerator.GetGenerator().location(event.getBlock().getLocation()));
+				map.put("cause", new CString(event.getCause().name(), Target.UNKNOWN));
+
+				return map;
+			} else {
+				throw new EventException("Cannot convert e to MCBlockIgniteEvent");
+			}
+		}
+
+		@Override
+		public boolean modifyEvent(String key, Construct value, BindableEvent event) {
+			return false;
+		}
+	}
 
     @api
     public static class sign_changed extends AbstractEvent {
@@ -649,6 +735,78 @@ public class BlockEvents {
 					return true;
 				}
 			}
+			return false;
+		}
+	}
+
+	@api
+	public static class block_grow extends AbstractEvent {
+
+		public String getName() {
+			return "block_grow";
+		}
+
+		public Driver driver() {
+			return Driver.BLOCK_GROW;
+		}
+
+		public String docs() {
+			return "{oldtype: <string match> The block type before the growth | olddata: <string match> The block data before the growth |"
+					+ " newtype: <string match> The block type after the growth | newdata: <string match> The block data after the growth |"
+					+ " world: <macro>}"
+					+ " This event is called when a block grows naturally. If the event is cancelled, the block will not grow."
+					+ " {oldblock: The block before the growth (an array with keys 'type' and 'data') | newblock: The block after the growth (an array with keys 'type' and 'data') |"
+					+ " location: the location of the block that will grow}"
+					+ " {}"
+					+ " {}";
+		}
+
+		public CHVersion since() {
+			return CHVersion.V3_3_1;
+		}
+
+		public boolean matches(Map<String, Construct> prefilter, BindableEvent event) throws PrefilterNonMatchException {
+			if (event instanceof MCBlockGrowEvent) {
+				MCBlockGrowEvent blockGrowEvent = (MCBlockGrowEvent) event;
+				MCBlock oldBlock = blockGrowEvent.getBlock();
+				Prefilters.match(prefilter, "oldtype", oldBlock.getTypeId(), PrefilterType.STRING_MATCH);
+				Prefilters.match(prefilter, "olddata", oldBlock.getData(), PrefilterType.STRING_MATCH);
+				MCBlockState newBlock = blockGrowEvent.getNewState();
+				Prefilters.match(prefilter, "newtype", newBlock.getTypeId(), PrefilterType.STRING_MATCH);
+				Prefilters.match(prefilter, "newdata", newBlock.getData().getData(), PrefilterType.STRING_MATCH);
+				Prefilters.match(prefilter, "world", oldBlock.getWorld().getName(), PrefilterType.MACRO);
+				return true;
+			} else {
+				return false;
+			}
+		}
+
+		public BindableEvent convert(CArray manualObject) {
+			return null;
+		}
+
+		public Map<String, Construct> evaluate(BindableEvent event) throws EventException {
+			if (event instanceof MCBlockGrowEvent) {
+				MCBlockGrowEvent blockGrowEvent = (MCBlockGrowEvent) event;
+				Map<String, Construct> mapEvent = evaluate_helper(event);
+				MCBlock oldBlock = blockGrowEvent.getBlock();
+				CArray oldBlockArray = new CArray(Target.UNKNOWN);
+				oldBlockArray.set("type", new CInt(oldBlock.getTypeId(), Target.UNKNOWN), Target.UNKNOWN);
+				oldBlockArray.set("data", new CInt(oldBlock.getData(), Target.UNKNOWN), Target.UNKNOWN);
+				mapEvent.put("oldblock", oldBlockArray);
+				MCBlockState newBlock = blockGrowEvent.getNewState();
+				CArray newBlockArray = new CArray(Target.UNKNOWN);
+				newBlockArray.set("type", new CInt(newBlock.getTypeId(), Target.UNKNOWN), Target.UNKNOWN);
+				newBlockArray.set("data", new CInt(newBlock.getData().getData(), Target.UNKNOWN), Target.UNKNOWN);
+				mapEvent.put("newblock", newBlockArray);
+				mapEvent.put("location", ObjectGenerator.GetGenerator().location(oldBlock.getLocation(), false));
+				return mapEvent;
+			} else {
+				throw new EventException("Cannot convert event to BlockGrowEvent");
+			}
+		}
+
+		public boolean modifyEvent(String key, Construct value, BindableEvent e) {
 			return false;
 		}
 	}

@@ -1,12 +1,14 @@
 package com.laytonsmith.abstraction.bukkit;
 
-import com.laytonsmith.PureUtilities.ReflectionUtils;
+import com.laytonsmith.PureUtilities.Common.ReflectionUtils;
 import com.laytonsmith.abstraction.*;
 import com.laytonsmith.abstraction.bukkit.pluginmessages.BukkitMCMessenger;
 import com.laytonsmith.abstraction.enums.MCInventoryType;
 import com.laytonsmith.abstraction.pluginmessages.MCMessenger;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Set;
 
 import net.milkbowl.vault.chat.Chat;
@@ -20,6 +22,7 @@ import org.bukkit.command.SimpleCommandMap;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.Recipe;
 import org.bukkit.plugin.RegisteredServiceProvider;
 
 /**
@@ -151,6 +154,10 @@ public class BukkitMCServer implements MCServer {
 
     public String getVersion() {
         return s.getVersion();
+    }
+
+    public int getPort() {
+        return s.getPort();
     }
 
     public Boolean getAllowEnd() {
@@ -317,7 +324,7 @@ public class BukkitMCServer implements MCServer {
 	
 	public MCMessenger getMessenger() {
 		return new BukkitMCMessenger(s.getMessenger());
-}
+	}
 
 	public MCScoreboard getMainScoreboard() {
 		return new BukkitMCScoreboard(s.getScoreboardManager().getMainScoreboard());
@@ -329,5 +336,43 @@ public class BukkitMCServer implements MCServer {
 	
 	public boolean unloadWorld(MCWorld world, boolean save) {
 		return s.unloadWorld(((BukkitMCWorld) world).__World(), save);
+	}
+
+	public void shutdown() {
+		s.shutdown();
+	}
+	
+	public boolean addRecipe(MCRecipe recipe) {
+		return s.addRecipe(((BukkitMCRecipe) recipe).r);
+	}
+	
+	public List<MCRecipe> getRecipesFor(MCItemStack result) {
+		List<MCRecipe> ret = new ArrayList<MCRecipe>();
+		List<Recipe> recipes = s.getRecipesFor(((BukkitMCItemStack) result).__ItemStack());
+		for (Recipe recipe : recipes) {
+			ret.add(BukkitConvertor.BukkitGetRecipe(recipe));
+		}
+		return ret;
+	}
+	
+	public List<MCRecipe> allRecipes() {
+		List<MCRecipe> ret = new ArrayList<MCRecipe>();
+		for (Iterator recipes = s.recipeIterator(); recipes.hasNext();) {
+			Recipe recipe = (Recipe) recipes.next();
+			ret.add(BukkitConvertor.BukkitGetRecipe(recipe));
+		}
+		return ret;
+	}
+	
+//	public Iterator<MCRecipe> recipe iterator() {
+//		Iterator<MCRecipe> ret = //create iterator;
+//	}
+	
+	public void clearRecipes() {
+		s.clearRecipes();
+	}
+	
+	public void resetRecipes() {
+		s.resetRecipes();
 	}
 }

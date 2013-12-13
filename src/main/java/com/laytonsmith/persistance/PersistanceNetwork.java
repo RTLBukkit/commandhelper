@@ -1,7 +1,7 @@
 package com.laytonsmith.persistance;
 
 import com.laytonsmith.PureUtilities.DaemonManager;
-import com.laytonsmith.PureUtilities.FileUtility;
+import com.laytonsmith.PureUtilities.Common.FileUtil;
 import com.laytonsmith.persistance.io.ConnectionMixinFactory;
 import java.io.File;
 import java.io.IOException;
@@ -40,7 +40,7 @@ public class PersistanceNetwork {
 	 * @param defaultURI
 	 */
 	public PersistanceNetwork(File configuration, URI defaultURI, ConnectionMixinFactory.ConnectionMixinOptions options) throws IOException, DataSourceException {
-		this(FileUtility.read(ensureCreated(configuration)), defaultURI, options);
+		this(FileUtil.read(ensureCreated(configuration)), defaultURI, options);
 	}
 
 	private static File ensureCreated(File f) throws IOException {
@@ -66,6 +66,17 @@ public class PersistanceNetwork {
 		dsCache = new TreeMap<URI, DataSource>();
 		this.options = options;
 		//Data sources are lazily loaded, so we don't need to do anything right now to load them.
+	}
+	
+	/**
+	 * Returns the URI describing where this key currently lives, given the filter
+	 * configuration. This is meant for debug purposes only, and not for general use,
+	 * as it breaks the transparency of the PersistanceNetwork.
+	 * @param key
+	 * @return 
+	 */
+	public URI getKeySource(String [] key){
+		return filter.getConnection(key);
 	}
 
 	/**
@@ -146,7 +157,8 @@ public class PersistanceNetwork {
 	/**
 	 * This method returns a list of all keys and values that match the
 	 * namespace. If a.b.c is requested, then keys (and values) a.b.c.d and
-	 * a.b.c.e would be returned.
+	 * a.b.c.e would be returned. If the namespace is empty, it will match
+	 * all keys.
 	 *
 	 * @param namespace
 	 * @return

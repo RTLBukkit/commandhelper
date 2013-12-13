@@ -3,6 +3,7 @@ package com.laytonsmith.core.functions;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.abstraction.MCBlockCommandSender;
 import com.laytonsmith.abstraction.MCCommandSender;
+import com.laytonsmith.abstraction.MCConsoleCommandSender;
 import com.laytonsmith.abstraction.MCLocation;
 import com.laytonsmith.abstraction.MCPlayer;
 import com.laytonsmith.annotations.api;
@@ -104,6 +105,10 @@ public class Meta {
 				CHLog.GetLogger().Log(CHLog.Tags.META, "Executing command on " + (env.getEnv(CommandHelperEnvironment.class).GetPlayer() != null ? env.getEnv(CommandHelperEnvironment.class).GetPlayer().getName() : "console") + " (as console): " + args[1].val().trim(), t);
 				if (Prefs.DebugMode()) {
 					Static.getLogger().log(Level.INFO, "[CommandHelper]: Executing command on " + (env.getEnv(CommandHelperEnvironment.class).GetPlayer() != null ? env.getEnv(CommandHelperEnvironment.class).GetPlayer().getName() : "console") + " (as : " + args[1].val().trim());
+				}
+				if(cmd.equalsIgnoreCase("interpreter-on")){
+					//This isn't allowed for security reasons.
+					throw new ConfigRuntimeException("/interpreter-on cannot be run from runas for security reasons.", ExceptionType.FormatException, t);
 				}
 				Static.getServer().runasConsole(cmd);
 			} else {
@@ -248,7 +253,7 @@ public class Meta {
 			MCPlayer p = (MCPlayer) player;
 			try {
 				p.setTempOp(value);
-			} catch (Throwable e) {
+			} catch (Exception e) {
 				if(Prefs.UseSudoFallback()){
 					p.setOp(value);
 				} else {
@@ -303,7 +308,9 @@ public class Meta {
 					Static.getLogger().log(Level.INFO, "[CommandHelper]: Executing command from console equivalent: " + args[0].val().trim());
 				}
 			}
-			//p.chat(cmd);
+			if(cmd.equalsIgnoreCase("interpreter-on")){
+				throw new Exceptions.FormatException("/interpreter-on cannot be run as apart of an alias for security reasons.", t);
+			}
 			Static.getServer().dispatchCommand(env.getEnv(CommandHelperEnvironment.class).GetCommandSender(), cmd);
 			return new CVoid(t);
 		}
@@ -401,8 +408,10 @@ public class Meta {
 
 		@Override
 		public Construct execs(Target t, Environment env, Script parent, ParseTree... nodes) {
+			boolean oldDynamicScriptMode = env.getEnv(GlobalEnv.class).GetDynamicScriptingMode();
 			ParseTree node = nodes[0];
 			try {
+				env.getEnv(GlobalEnv.class).SetDynamicScriptingMode(true);
 				Construct script = parent.seval(node, env);
 				ParseTree root = MethodScriptCompiler.compile(MethodScriptCompiler.lex(script.val(), t.file(), true));
 				StringBuilder b = new StringBuilder();
@@ -420,6 +429,8 @@ public class Meta {
 				return new CString(b.toString(), t);
 			} catch (ConfigCompileException e) {
 				throw new ConfigRuntimeException("Could not compile eval'd code: " + e.getMessage(), ExceptionType.FormatException, t);
+			} finally {
+				env.getEnv(GlobalEnv.class).SetDynamicScriptingMode(oldDynamicScriptMode);
 			}
 		}
 
@@ -812,17 +823,17 @@ public class Meta {
 		}
 
 		public Construct exec(Target t, Environment environment, Construct... args) throws ConfigRuntimeException {
-			MCPlayer p = environment.getEnv(CommandHelperEnvironment.class).GetPlayer();
-			Static.AssertPlayerNonNull(p, t);
-			boolean state = false;
-			if(args.length == 2) {
-				p = Static.GetPlayer(args[0].val(), t);
-				state = Static.getBoolean(args[1]);
-			} else if(args.length == 1) {
+			MCPlayer player;
+			boolean state;
+			if (args.length == 1) {
+				player = environment.getEnv(CommandHelperEnvironment.class).GetPlayer();
+				Static.AssertPlayerNonNull(player, t);
 				state = Static.getBoolean(args[0]);
+			} else {
+				player = Static.GetPlayer(args[0].val(), t);
+				state = Static.getBoolean(args[1]);
 			}
-			
-			p.setOp(state);
+			player.setOp(state);
 			return new CVoid(t);
 		}
 

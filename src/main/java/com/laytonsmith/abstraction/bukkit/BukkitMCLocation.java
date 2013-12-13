@@ -22,7 +22,6 @@ public class BukkitMCLocation implements MCLocation {
     }
 
     public BukkitMCLocation(AbstractionObject a) {
-        this((Location)null);
         if (a instanceof MCLocation) {
             this.l = ((Location)a.getHandle());
         } else {
@@ -91,6 +90,18 @@ public class BukkitMCLocation implements MCLocation {
     public Location _Location() {
         return l;
     }
+
+	public void setX(double x) {
+		l.setX(x);
+	}
+
+	public void setY(double y) {
+		l.setY(y);
+	}
+
+	public void setZ(double z) {
+		l.setZ(z);
+	}
 
     public void setPitch(float p) {
         l.setPitch(p);

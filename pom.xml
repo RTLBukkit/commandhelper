@@ -164,7 +164,7 @@
 		<dependency>
 			<groupId>com.sk89q</groupId>
 			<artifactId>worldedit</artifactId>
-			<version>5.5.6</version>
+			<version>5.5.8</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.spout</groupId>
@@ -177,7 +177,7 @@
 		<dependency>
 			<groupId>org.bukkit</groupId>
 			<artifactId>bukkit</artifactId>
-			<version>1.6.2-R0.1-SNAPSHOT</version>
+			<version>1.7.2-R0.1-SNAPSHOT</version>
 		</dependency>
         
 		<!-- CraftBukkit Dependency for experimental features
@@ -199,6 +199,7 @@
 			<groupId>net.milkbowl</groupId>
 			<artifactId>vault</artifactId>
 			<version>1.2.12</version>
+			<type>jar</type>
 		</dependency>
         
 		<!-- Used for storing and retreiving Constructs in a storage transparent medium: JSONs -->
@@ -259,7 +260,7 @@
 		<dependency>
 			<groupId>redis.clients</groupId>
 			<artifactId>jedis</artifactId>
-			<version>2.1.0</version>
+			<version>2.2.1</version>
 			<type>jar</type>
 			<scope>compile</scope>
 		</dependency>
@@ -268,7 +269,7 @@
 		<dependency>
 			<groupId>mysql</groupId>
 			<artifactId>mysql-connector-java</artifactId>
-			<version>5.1.25</version>
+			<version>5.1.27</version>
 			<type>jar</type>
 			<scope>compile</scope>
 		</dependency>
@@ -277,7 +278,7 @@
 		<dependency>
 			<groupId>org.yaml</groupId>
 			<artifactId>snakeyaml</artifactId>
-			<version>1.12</version>
+			<version>1.13</version>
 		</dependency>
 
 		<!-- Apache commons IO -->
@@ -345,13 +346,13 @@
 		<dependency>
 			<groupId>org.powermock</groupId>
 			<artifactId>powermock-module-junit4</artifactId>
-			<version>1.5.1</version>
+			<version>1.5.2</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.powermock</groupId>
 			<artifactId>powermock-api-mockito</artifactId>
-			<version>1.5.1</version>
+			<version>1.5.2</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -432,8 +433,14 @@
 				<version>2.3.2</version>
 				<configuration>
 					<showDeprecation>true</showDeprecation>
+					<!-- Change just the target to 1.7 for now. After a brief
+						trial period, the source will be updated to 1.7 as well.
+						This will force the devs to use 1.6 source, but users to
+						use 1.7. This way, if this causes serious issues for users
+						during the trial period, we can quickly downgrade, and not
+						have to rewrite any code. -->
 					<source>1.6</source>
-					<target>1.6</target>
+					<target>1.7</target>
 				</configuration>
 			</plugin>
 
@@ -505,6 +512,7 @@
 							<artifactSet>
 								<includes>
 									<include>com.sk89q:worldedit:jar:*</include>
+									<include>com.sk89q:worldguard:jar:*</include>
 									<include>org.perf4j:perf4j:jar:*</include>
 									<include>log4j:log4j:jar:*</include>
 									<include>org.yaml:snakeyaml:jar:*</include>
@@ -625,11 +633,36 @@
 										<include>com/sk89q/worldedit/Vector.*</include>
 										<!-- Expression Parser -->
 										<include>com/sk89q/worldedit/expression/**</include>
+										<!-- General Requirements -->
+										<include>com/sk89q/worldedit/bukkit/BukkitCommandSender.*</include>
+										<include>com/sk89q/worldedit/LocalPlayer.*</include>
+										<include>com/sk89q/worldedit/MaxChangedBlocksException.*</include>
+										<include>com/sk89q/worldedit/WorldEditException.*</include>
+										<include>com/sk89q/worldedit/WorldEditException.*</include>
+										<include>com/sk89q/worldedit/EmptyClipboardException.*</include>
+										<include>com/sk89q/worldedit/BlockVector.*</include>
+										<include>com/sk89q/worldedit/data/DataException.*</include>
 									</includes>
 									<excludes>
 										<exclude>com/sk89q/jchronic/**</exclude>
 										<exclude>com/google/**</exclude>
 									</excludes>
+								</filter>
+								<filter>
+									<artifact>com.sk89q:worldguard:jar:*</artifact>
+									<excludes></excludes>
+									<includes>
+										<include>com/sk89q/worldguard/protection/flags/InvalidFlagFormat.*</include>
+										<include>com/sk89q/worldguard/protection/regions/ProtectedRegion.*</include>
+										<include>com/sk89q/worldguard/protection/regions/GlobalProtectedRegion.*</include>
+										<include>com/sk89q/worldguard/protection/regions/ProtectedCuboidRegion.*</include>
+										<include>com/sk89q/worldguard/protection/flags/Flag.*</include>
+										<include>com/sk89q/worldguard/protection/regions/ProtectedPolygonalRegion.*</include>
+										<include>com/sk89q/worldguard/protection/flags/RegionGroupFlag.*</include>
+										<include>com/sk89q/worldguard/protection/regions/ProtectedPolygonalRegion.*</include>
+										<include>com/sk89q/worldguard/protection/flags/EnumFlag.*</include>
+										<include>com/sk89q/worldguard/protection/regions/ProtectedRegion$CircularInheritanceException*</include>
+									</includes>
 								</filter>
 								<!-- Profiler -->
 								<filter>
@@ -711,7 +744,7 @@
 					</execution>
 				</executions>
 				<configuration>
-					<mainClass>com.laytonsmith.annotations.processors.CacheAnnotations</mainClass>
+					<mainClass>com.laytonsmith.PureUtilities.ClassLoading.Annotations.CacheAnnotations</mainClass>
 					<arguments>
 						<argument>${basedir}/target/classes</argument>
 						<argument>${basedir}/target/classes</argument>
@@ -734,7 +767,7 @@
 				<configuration>
 					<outputDirectory>src/main/generated</outputDirectory>
 					<processors>
-						<processor>com.laytonsmith.annotations.processors.CheckOverrides</processor>
+						<processor>com.laytonsmith.PureUtilities.Common.Annotations.CheckOverrides</processor>
 					</processors>
 				</configuration>
 			</plugin>

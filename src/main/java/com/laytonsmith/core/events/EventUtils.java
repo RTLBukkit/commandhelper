@@ -1,6 +1,6 @@
 package com.laytonsmith.core.events;
 
-import com.laytonsmith.PureUtilities.ClassDiscovery;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
 import com.laytonsmith.annotations.event;
 import com.laytonsmith.core.constructs.CArray;
 import com.laytonsmith.core.constructs.CString;
@@ -57,7 +57,7 @@ public final class EventUtils {
         SortedSet<BoundEvent> set = event_handles.get(event.driver());
         set.add(b);
         try {
-            event.bind(b.getPrefilter());
+            event.bind(b);
         } catch (UnsupportedOperationException e) {
         }
     }

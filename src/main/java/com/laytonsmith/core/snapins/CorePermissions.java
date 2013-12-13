@@ -1,7 +1,8 @@
 package com.laytonsmith.core.snapins;
 
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.core.CHVersion;
+import java.net.URL;
 
 /**
  *
@@ -79,6 +80,11 @@ public enum CorePermissions implements PackagePermission {
 
 	public CHVersion since() {
 		return since;
+	}
+
+	@Override
+	public URL getSourceJar() {
+		return null;
 	}
 	
 }

@@ -1,12 +1,12 @@
 package com.laytonsmith.tools.docgen;
 
 import com.laytonsmith.PureUtilities.ArgumentParser;
-import com.laytonsmith.PureUtilities.ClassDiscovery;
-import com.laytonsmith.PureUtilities.HTMLUtils;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
+import com.laytonsmith.PureUtilities.Common.HTMLUtils;
 import com.laytonsmith.PureUtilities.MSP.Burst;
-import com.laytonsmith.PureUtilities.ReflectionUtils;
-import com.laytonsmith.PureUtilities.StreamUtils;
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.ReflectionUtils;
+import com.laytonsmith.PureUtilities.Common.StreamUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.abstraction.Implementation;
 import com.laytonsmith.annotations.datasource;
 import com.laytonsmith.core.Documentation;
@@ -272,6 +272,17 @@ public class DocGenTemplates {
 		public String generate(String... args) {
 			Class c = ClassDiscovery.getDefaultInstance().forFuzzyName(args[0], args[1]).loadClass();
 			return "[" + githubBaseURL + "/" + c.getName().replace(".", "/") + ".java " + c.getName() + "]";
+		}
+	};
+	
+	/**
+	 * Returns the base github url for sources.
+	 */
+	public static Generator GITHUB_URL = new Generator() {
+
+		@Override
+		public String generate(String... args) {
+			return githubBaseURL;
 		}
 	};
 	

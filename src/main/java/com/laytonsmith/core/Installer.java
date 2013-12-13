@@ -2,13 +2,14 @@
 
 package com.laytonsmith.core;
 
-import com.laytonsmith.PureUtilities.FileUtility;
-import com.laytonsmith.PureUtilities.StreamUtils;
+import com.laytonsmith.PureUtilities.Common.FileUtil;
+import com.laytonsmith.PureUtilities.Common.StreamUtils;
 import com.laytonsmith.core.profiler.Profiler;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -33,7 +34,7 @@ public final class Installer {
             String sample = parseISToString(Installer.class.getResourceAsStream("/samp_auto_include.txt"));
             sample = sample.replaceAll("\n|\r\n", System.getProperty("line.separator"));
             try {
-                FileUtility.write(sample, auto_include);
+                FileUtil.write(sample, auto_include);
             } catch (IOException ex) {
                 Logger.getLogger(Installer.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -49,7 +50,15 @@ public final class Installer {
 		File persistanceNetwork = new File(root, "persistance.config");
 		if(!persistanceNetwork.exists()){
 			try {
-				FileUtility.write(StreamUtils.GetString(Installer.class.getResourceAsStream("/samp_persistance_network.txt"), "UTF-8"), persistanceNetwork, true);
+				FileUtil.write(StreamUtils.GetString(Installer.class.getResourceAsStream("/samp_persistance_network.txt"), "UTF-8"), persistanceNetwork, true);
+			} catch (IOException ex) {
+				Logger.getLogger(Installer.class.getName()).log(Level.SEVERE, null, ex);
+			}
+		}
+		
+		if(!MethodScriptFileLocations.getDefault().getSQLProfilesFile().exists()){
+			try {
+				FileUtil.write(StreamUtils.GetString(Installer.class.getResourceAsStream("/samp_sql-profiles.xml"), "UTF-8"), MethodScriptFileLocations.getDefault().getSQLProfilesFile(), true);
 			} catch (IOException ex) {
 				Logger.getLogger(Installer.class.getName()).log(Level.SEVERE, null, ex);
 			}

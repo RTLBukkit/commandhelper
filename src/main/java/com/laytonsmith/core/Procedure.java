@@ -158,25 +158,41 @@ public class Procedure implements Cloneable {
      */
     public Construct execute(List<Construct> args, Environment env, Target t) {
         env.getEnv(GlobalEnv.class).SetVarList(new IVariableList());
-        CArray array = new CArray(Target.UNKNOWN);
+		//This is what will become our @arguments var
+        CArray arguments = new CArray(Target.UNKNOWN);
         for (String key : originals.keySet()) {
             Construct c = originals.get(key);
             env.getEnv(GlobalEnv.class).GetVarList().set(new IVariable(key, c, Target.UNKNOWN));
-            array.push(c);
+            arguments.push(c);
         }
         Script fakeScript = Script.GenerateScript(tree, env.getEnv(GlobalEnv.class).GetLabel());//new Script(null, null);        
         for (int i = 0; i < args.size(); i++) {
             Construct c = args.get(i);
-            array.set(i, c, t);
+            arguments.set(i, c, t);
             if (varIndex.size() > i) {
                 String varname = varIndex.get(i).getName();
                 env.getEnv(GlobalEnv.class).GetVarList().set(new IVariable(varname, c, c.getTarget()));
             }
         }
-        env.getEnv(GlobalEnv.class).GetVarList().set(new IVariable("@arguments", array, Target.UNKNOWN));
+        env.getEnv(GlobalEnv.class).GetVarList().set(new IVariable("@arguments", arguments, Target.UNKNOWN));
 
         try {
-            fakeScript.eval(tree, env);
+			if(tree.getData() instanceof CFunction
+					&& "sconcat".equals(tree.getData().val())){
+				//If the inner tree is just an sconcat, we can optimize by
+				//simply running the arguments to the sconcat. We're not going
+				//to use the results, after all, and this is a common occurance,
+				//because the compiler will often put it there automatically.
+				//We *could* optimize this by removing it from the compiled code,
+				//and we still should do that, but this check is quick enough,
+				//and so can remain even once we do add the optimization to the
+				//compiler proper.
+				for(ParseTree child : tree.getChildren()){
+					fakeScript.eval(child, env);
+				}
+			} else {
+				fakeScript.eval(tree, env);
+			}
         } catch (FunctionReturnException e) {
             return e.getReturn();
         } catch(ConfigRuntimeException e){

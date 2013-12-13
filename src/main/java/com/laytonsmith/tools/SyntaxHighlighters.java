@@ -2,8 +2,8 @@
 
 package com.laytonsmith.tools;
 
-import com.laytonsmith.PureUtilities.ClassDiscovery;
-import com.laytonsmith.PureUtilities.ClassMirror.ClassMirror;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassMirror.ClassMirror;
 import com.laytonsmith.abstraction.Implementation;
 import com.laytonsmith.abstraction.enums.MCChatColor;
 import com.laytonsmith.annotations.api;
@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 public class SyntaxHighlighters {
 
     public static String generate(String type, String theme) {
+		Implementation.useAbstractEnumThread(false);
 		Implementation.setServerType(Implementation.Type.BUKKIT);
         if("npp".equals(type) || "notepad++".equals(type)){
 
@@ -35,10 +36,16 @@ public class SyntaxHighlighters {
                 return template("/syntax-templates/notepad++/default.xml");
             }
             if("obsidian".equals(theme)){
-                return template("/syntax-templates/notepad++/obsidian.xml");                
+                return template("/syntax-templates/notepad++/obsidian.xml");
+            }
+            if("solarized-dark".equals(theme)){
+                return template("/syntax-templates/notepad++/solarized_dark.xml");
+            }
+            if("solarized-light".equals(theme)){
+                return template("/syntax-templates/notepad++/solarized_light.xml");
             }
 
-            return "Available themes for Notepad++: default, obsidian";            
+            return "Available themes for Notepad++: default, obsidian, solarized-dark, solarized-light";            
         }
         if("textwrangler".equals(type)){
             return template("/syntax-templates/text-wrangler/default.plist");
@@ -63,6 +70,13 @@ public class SyntaxHighlighters {
                 + "\t\tTo install: put in ~/.vim/syntax/commandhelper.vim then edit\n"
                 + "\t\t~/.vim/ftdetect/commandhelper.vim and add the line \n"
                 + "\t\tau BufRead,BufNewFile *.ms set filetype=commandhelper\n"
+				+ "\t\tThen, if you're on linux and use cmdline mode, in ~/.vim/scripts.vim, add the following lines:\n"
+				+ "\t\t\tif did_filetype()\n"
+				+ "\t\t\t\tfinish\n"
+				+ "\t\t\tendif\n"
+				+ "\t\t\tif getline(1) =~# '^#!.*\\(/bin/env\\s\\+mscript\\|/bin/mscript\\)\\>'\n"
+				+ "\t\t\t\tsetfiletype commandhelper\n"
+				+ "\t\t\tendif"
                 + "\t\t(Create directories and files as needed)\n"
                 + "\tnano - Use type\"nano\". Only the default theme is available.\n"
                 + "\n\n"
@@ -180,9 +194,9 @@ public class SyntaxHighlighters {
     
     private static List<Documentation> GetEvents(){
         List<Documentation> l = new ArrayList<Documentation>();
-        Set<Class<Event>> classes = ClassDiscovery.getDefaultInstance().loadClassesThatExtend(Event.class);
-        for(Class<Event> c : classes){
-            if (Documentation.class.isAssignableFrom(c)) {
+        Set<Class> classes = ClassDiscovery.getDefaultInstance().loadClassesWithAnnotation(api.class);
+        for(Class c : classes){
+            if (Event.class.isAssignableFrom(c) && Documentation.class.isAssignableFrom(c)) {
                 try {
                     Constructor m = c.getConstructor();
                     Documentation e = (Documentation)m.newInstance();

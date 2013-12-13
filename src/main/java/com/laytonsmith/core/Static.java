@@ -1,5 +1,6 @@
 package com.laytonsmith.core;
 
+import com.laytonsmith.PureUtilities.Common.DateUtils;
 import com.laytonsmith.PureUtilities.*;
 import com.laytonsmith.abstraction.*;
 import com.laytonsmith.abstraction.blocks.MCBlock;
@@ -13,6 +14,7 @@ import com.laytonsmith.core.exceptions.ConfigRuntimeException;
 import com.laytonsmith.core.functions.Exceptions;
 import com.laytonsmith.core.functions.Exceptions.ExceptionType;
 import com.laytonsmith.core.profiler.Profiler;
+import com.laytonsmith.database.Profiles;
 import com.laytonsmith.persistance.DataSourceException;
 import com.laytonsmith.persistance.PersistanceNetwork;
 import com.laytonsmith.persistance.io.ConnectionMixinFactory;
@@ -62,6 +64,15 @@ public final class Static {
 		}
 	}
 	
+	/**
+	 * Works like the other get* methods, but works in a more generic way for other types of Constructs.
+	 * @param <T> The type expected.
+	 * @param construct The generic object
+	 * @param t Code target
+	 * @param expectedClassName The expected class type, for use in the error message if the construct is the wrong type.
+	 * @param clazz The type expected.
+	 * @return The properly cast object.
+	 */
 	public static <T extends Construct> T getObject(Construct construct, Target t, String expectedClassName, Class<T> clazz){
 		if(clazz.isAssignableFrom(construct.getClass())){
 			return (T)construct;
@@ -121,7 +132,8 @@ public final class Static {
     }
 	
 	public static float getDouble32(Construct c, Target t){
-		double delta = 0.000000001; //Eight places should be enough, right?
+		// Use 6 places at most else the imprecisions of float makes this function throw the exception.
+		double delta = 0.0000001; 
 		double l = getDouble(c, t);
 		float f = (float)l;
 		if(Math.abs(f - l) > delta){
@@ -152,7 +164,7 @@ public final class Static {
             try {
                 i = Long.parseLong(c.val());
             } catch (NumberFormatException e) {
-                throw new ConfigRuntimeException("Expecting an integer, but received " + c.val() + " instead",
+                throw new ConfigRuntimeException("Expecting an integer, but received \"" + c.val() + "\" instead",
                         ExceptionType.CastException, t);
             }
         }
@@ -344,7 +356,7 @@ public final class Static {
      * @return 
      */
     public static FileWriter debugLogFile(File root) throws IOException {
-        String currentFileName = root.getPath() + "/" + DateUtil.ParseCalendarNotation(Prefs.DebugLogFile());
+        String currentFileName = root.getPath() + "/" + DateUtils.ParseCalendarNotation(Prefs.DebugLogFile());
         if (!currentFileName.equals(debugLogFileCurrent)) {
             if (debugLogFileHandle != null) {
                 //We're done with the old one, close it.
@@ -363,7 +375,7 @@ public final class Static {
     private static FileWriter standardLogFileHandle = null;
 
     public static FileWriter standardLogFile(File root) throws IOException {
-        String currentFileName = root.getPath() + DateUtil.ParseCalendarNotation(Prefs.StandardLogFile());
+        String currentFileName = root.getPath() + DateUtils.ParseCalendarNotation(Prefs.StandardLogFile());
         if (!currentFileName.equals(standardLogFileCurrent)) {
             if (standardLogFileHandle != null) {
                 //We're done with the old one, close it.
@@ -379,7 +391,7 @@ public final class Static {
     private static FileWriter profilingLogFileHandle = null;
 
     public static FileWriter profilingLogFile(File root) throws IOException {
-        String currentFileName = root.getPath() + DateUtil.ParseCalendarNotation(Prefs.ProfilingFile());
+        String currentFileName = root.getPath() + DateUtils.ParseCalendarNotation(Prefs.ProfilingFile());
         if (!currentFileName.equals(profilingLogFileCurrent)) {
             if (profilingLogFileHandle != null) {
                 //We're done with the old one, close it.
@@ -588,10 +600,10 @@ public final class Static {
             return "0";
         }
         String append = null;
-        if (is.getData() != null) {
-            append = Integer.toString(is.getData().getData());
-        } else if (is.getDurability() != 0) {
+        if (is.getDurability() != 0) {
             append = Short.toString(is.getDurability());
+        } else if (is.getData() != null) {
+            append = Integer.toString(is.getData().getData());
         }
         return is.getTypeId() + (append == null ? "" : ":" + append);
     }
@@ -790,7 +802,7 @@ public final class Static {
 				Static.getLogger().log(lev, color + message + TermColors.reset());
 			}
         }
-        String timestamp = DateUtil.ParseCalendarNotation("%Y-%M-%D %h:%m.%s - ");
+        String timestamp = DateUtils.ParseCalendarNotation("%Y-%M-%D %h:%m.%s - ");
         QuickAppend(Static.debugLogFile(root), timestamp + message + Static.LF());
     }
 
@@ -992,7 +1004,7 @@ public final class Static {
 	 * @throws DataSourceException
 	 * @throws URISyntaxException 
 	 */
-	public static Environment GenerateStandaloneEnvironment() throws IOException, DataSourceException, URISyntaxException{
+	public static Environment GenerateStandaloneEnvironment() throws IOException, DataSourceException, URISyntaxException, Profiles.InvalidProfileException{
 		return GenerateStandaloneEnvironment(new PermissionsResolver.PermissiveResolver());
 	}
 	
@@ -1005,7 +1017,7 @@ public final class Static {
 	 * @throws DataSourceException
 	 * @throws URISyntaxException 
 	 */
-	public static Environment GenerateStandaloneEnvironment(PermissionsResolver permissionsResolver) throws IOException, DataSourceException, URISyntaxException{
+	public static Environment GenerateStandaloneEnvironment(PermissionsResolver permissionsResolver) throws IOException, DataSourceException, URISyntaxException, Profiles.InvalidProfileException{
 		File jarLocation;
 		if(Static.class.getProtectionDomain().getCodeSource().getLocation() != null){
 			jarLocation = new File(Static.class.getProtectionDomain().getCodeSource().getLocation().getFile()).getParentFile();
@@ -1019,7 +1031,8 @@ public final class Static {
 		PersistanceNetwork persistanceNetwork = new PersistanceNetwork(new File(platformFolder, "persistance.config"), 
 				new URI("sqlite://" + new File(platformFolder, "persistance.db").getCanonicalPath().replace("\\", "/")), options);
 		GlobalEnv gEnv = new GlobalEnv(new MethodScriptExecutionQueue("MethodScriptExecutionQueue", "default"), 
-				new Profiler(new File(platformFolder, "profiler.config")), persistanceNetwork, permissionsResolver, platformFolder);
+				new Profiler(new File(platformFolder, "profiler.config")), persistanceNetwork, permissionsResolver, platformFolder,
+				new Profiles(MethodScriptFileLocations.getDefault().getSQLProfilesFile()));
 		gEnv.SetLabel(PermissionsResolver.GLOBAL_PERMISSION);
 		return Environment.createEnvironment(gEnv, new CommandHelperEnvironment());
 	}

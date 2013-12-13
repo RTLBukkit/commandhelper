@@ -40,7 +40,11 @@ public final class Prefs {
         SHOW_SPLASH_SCREEN("show-splash-screen"),
         USE_COLORS("use-colors"),
         HALT_ON_FAILURE("halt-on-failure"),
-		USE_SUDO_FALLBACK("use-sudo-fallback");
+		USE_SUDO_FALLBACK("use-sudo-fallback"),
+		ALLOW_SHELL_COMMANDS("allow-shell-commands"),
+		ALLOW_DYNAMIC_SHELL("allow-dynamic-shell"),
+		SCREAM_ERRORS("scream-errors"),
+		INTERPRETER_TIMEOUT("interpreter-timeout");
         String name;
         private PNames(String name){
             this.name = name;
@@ -74,9 +78,25 @@ public final class Prefs {
         a.add(new Preference(PNames.USE_COLORS.config(), (TermColors.SYSTEM == TermColors.SYS.WINDOWS ? "false" : "true"), Preferences.Type.BOOLEAN, "Whether or not to use console colors. If this is a Windows machine, defaults to false, however, it can be toggled manually, and will then respect your setting."));
         a.add(new Preference(PNames.HALT_ON_FAILURE.config(), "false", Preferences.Type.BOOLEAN, "Whether or not to halt compilation of pure mscript files if a compilation failure occurs in any one of the files."));
 		a.add(new Preference(PNames.USE_SUDO_FALLBACK.config(), "false", Preferences.Type.BOOLEAN, "If true, sudo() will use a less safe fallback method if it fails. See the documentation on the sudo function for more details. If this is true, a warning is issued at startup."));
+		a.add(new Preference(PNames.ALLOW_SHELL_COMMANDS.config(), "false", Preferences.Type.BOOLEAN, "If true, allows for the shell functions to be used from outside of cmdline mode. WARNING: Enabling these functions can be extremely dangerous if you accidentally allow uncontrolled access to them, and can"
+				+ " grant full control of your server if not careful. Leave this set to false unless you really know what you're doing."));
+		a.add(new Preference(PNames.ALLOW_DYNAMIC_SHELL.config(), "false", Preferences.Type.BOOLEAN, "If true, allows use of the shell() functions from dynamic code sources, i.e"
+				+ " interpreter or eval(). This almost certainly should always remain false, and if enabled, enabled only temporarily. If this is true, if an account with"
+				+ " interpreter mode is compromised, the attacker could gain access to your entire server, under the user running minecraft, not just the game server."));
+		a.add(new Preference(PNames.SCREAM_ERRORS.config(), "false", Preferences.Type.BOOLEAN, "Setting this to true allows you to scream errors. Regardless of other settings"
+				+ " that you may have unintentionally configured, this will override all ways of suppressing fatal errors, including uncaught exception"
+				+ " handlers, error logging turned off, etc. This is meant as a last ditch effort to diagnosing an error. This implicitely turns debug mode"
+				+ " on as well, which will cause even more error logging to occur."));
+		a.add(new Preference(PNames.INTERPRETER_TIMEOUT.config(), "15", Preferences.Type.INT, "Sets the time (in minutes) that interpreter mode is unlocked for when /interpreter-on is run from console. Set to 0 (or a negative number)"
+				+ " to disable this feature, and allow interpreter mode all the time. It is highly recommended that you leave this set to some number greater than 0, to enahnce"
+				+ " server security, and require a \"two step\" authentication for interpreter mode."));
         prefs = new Preferences("CommandHelper", Static.getLogger(), a);
         prefs.init(f);
     }
+	
+	public static boolean isInitialized(){
+		return prefs != null;
+	}
 	
 	/**
 	 * Convenience function to set the term colors based on the UseColors preference.
@@ -90,7 +110,7 @@ public final class Prefs {
 	}
     
     public static Boolean DebugMode(){
-        return (Boolean)pref(PNames.DEBUG_MODE);
+        return (Boolean)pref(PNames.DEBUG_MODE) || ScreamErrors();
     }
     
     public static Boolean ShowWarnings(){
@@ -159,5 +179,25 @@ public final class Prefs {
 	
 	public static Boolean UseSudoFallback(){
 		return (Boolean)pref(PNames.USE_SUDO_FALLBACK);
+	}
+	
+	public static Boolean AllowShellCommands(){
+		return (Boolean)pref(PNames.ALLOW_SHELL_COMMANDS);
+	}
+	
+	public static Boolean AllowDynamicShell(){
+		return (Boolean)pref(PNames.ALLOW_DYNAMIC_SHELL);
+	}
+	
+	public static Boolean ScreamErrors(){
+		return (Boolean)pref(PNames.SCREAM_ERRORS);
+	}
+	
+	public static Integer InterpreterTimeout(){
+		Integer i = (Integer)pref(PNames.INTERPRETER_TIMEOUT);
+		if(i < 0){
+			i = 0;
+		}
+		return i;
 	}
 }

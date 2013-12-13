@@ -19,6 +19,8 @@ import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerPickupItemEvent;
@@ -95,7 +97,7 @@ public class BukkitEntityListener implements Listener{
 			EventUtils.TriggerListener(Driver.ENTITY_DAMAGE, "entity_damage", ede);
 		}
 	}
-	
+
 	@EventHandler(priority=EventPriority.LOWEST)
 	public void onPHit(ProjectileHitEvent event) {
 		BukkitEntityEvents.BukkitMCProjectileHitEvent phe = 
@@ -103,7 +105,14 @@ public class BukkitEntityListener implements Listener{
 		EventUtils.TriggerExternal(phe);
 		EventUtils.TriggerListener(Driver.PROJECTILE_HIT, "projectile_hit", phe);
 	}
-	
+
+	@EventHandler(priority=EventPriority.LOWEST)
+	public void onProjectileLaunch(ProjectileLaunchEvent event) {
+		BukkitEntityEvents.BukkitMCProjectileLaunchEvent ple =  new BukkitEntityEvents.BukkitMCProjectileLaunchEvent(event);
+		EventUtils.TriggerExternal(ple);
+		EventUtils.TriggerListener(Driver.PROJECTILE_LAUNCH, "projectile_launch", ple);
+	}
+
 	@EventHandler(priority= EventPriority.LOWEST)
 	public void onPortalEnter(EntityPortalEnterEvent event) {
 		BukkitEntityEvents.BukkitMCEntityEnterPortalEvent pe = new BukkitEntityEvents.BukkitMCEntityEnterPortalEvent(event);
@@ -130,5 +139,12 @@ public class BukkitEntityListener implements Listener{
 		BukkitEntityEvents.BukkitMCEntityChangeBlockEvent ecbe = new BukkitEntityEvents.BukkitMCEntityChangeBlockEvent(event);
 		EventUtils.TriggerExternal(ecbe);
 		EventUtils.TriggerListener(Driver.ENTITY_CHANGE_BLOCK, "entity_change_block", ecbe);
+	}
+
+	@EventHandler(priority = EventPriority.LOWEST)
+	public void onHangingBreak(HangingBreakEvent event) {
+		BukkitEntityEvents.BukkitMCHangingBreakEvent hbe = new BukkitEntityEvents.BukkitMCHangingBreakEvent(event);
+		EventUtils.TriggerExternal(hbe);
+		EventUtils.TriggerListener(Driver.HANGING_BREAK, "hanging_break", hbe);
 	}
 }

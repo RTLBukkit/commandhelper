@@ -1,9 +1,10 @@
 package com.laytonsmith.core.functions;
 
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.abstraction.*;
 import com.laytonsmith.abstraction.blocks.MCMaterial;
+import com.laytonsmith.abstraction.entities.MCHorse;
 import com.laytonsmith.abstraction.enums.MCCreeperType;
 import com.laytonsmith.abstraction.enums.MCDyeColor;
 import com.laytonsmith.abstraction.enums.MCEffect;
@@ -26,6 +27,7 @@ import com.laytonsmith.core.exceptions.ConfigRuntimeException;
 import com.laytonsmith.core.functions.Exceptions.ExceptionType;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -276,8 +278,9 @@ public class Minecraft {
 
 		public String docs() {
 			return "array {mobType, [qty], [location]} Spawns qty mob of one of the following types at location. qty defaults to 1, and location defaults"
-					+ " to the location of the player. ---- mobType can be one of: " + StringUtils.Join(MCMobs.values(), ", ", ", or ", " or ") 
-					+ ". Spelling matters, but capitalization doesn't. At this time, the function is limited to spawning a maximum of 50 at a time."
+					+ " to the location of the player. An array of the entity IDs spawned is returned."
+					+ " ---- mobType can be one of: " + StringUtils.Join(MCMobs.values(), ", ", ", or ", " or ") + "."
+					+ " Spelling matters, but capitalization doesn't. At this time, the function is limited to spawning a maximum of 50 at a time."
 					+ " Further, subtypes can be applied by specifying MOBTYPE:SUBTYPE, for example the sheep subtype can be any of the dye colors: " 
 					+ StringUtils.Join(MCDyeColor.values(), ", ", ", or ", " or ") + ". COLOR defaults to white if not specified. For mobs with multiple"
 					+ " subtypes, separate each type with a \"-\", currently only zombies which, using ZOMBIE:TYPE1-TYPE2 can be any non-conflicting two of: "
@@ -289,11 +292,14 @@ public class Minecraft {
 					+ " and MagmaCube size can be set by integer, otherwise will be a random natural size. If a material is specified as the subtype"
 					+ " for Endermen, they will hold that material, otherwise they will hold nothing. Creepers can be set to " 
 					+ StringUtils.Join(MCCreeperType.values(), ", ", ", or ", " or ") + ", wolves can be " + StringUtils.Join(MCWolfType.values(), ", ", ", or ", " or ") 
-					+ ", and pigs can be " + StringUtils.Join(MCPigType.values(), ", ", ", or ", " or ") + ". An array of the entity IDs spawned is returned.";
+					+ ", and pigs can be " + StringUtils.Join(MCPigType.values(), ", ", ", or ", " or ") + "."
+					+ " Horses can have three different subTypes, the variant: " + StringUtils.Join(MCHorse.MCHorseVariant.values(), ", ", ", or ", " or ") + ","
+					+ " the color: " + StringUtils.Join(MCHorse.MCHorseColor.values(), ", ", ", or ", " or ") + ","
+					+ " and the pattern: " + StringUtils.Join(MCHorse.MCHorsePattern.values(), ", ", ", or ", " or ") + ".";
 		}
 
 		public ExceptionType[] thrown() {
-			return new ExceptionType[]{ExceptionType.CastException, ExceptionType.RangeException, ExceptionType.FormatException};
+			return new ExceptionType[]{ExceptionType.CastException, ExceptionType.RangeException, ExceptionType.FormatException, ExceptionType.PlayerOfflineException, ExceptionType.InvalidWorldException};
 		}
 
 		public boolean isRestricted() {
@@ -323,27 +329,19 @@ public class Minecraft {
 				throw new ConfigRuntimeException("A bit excessive, don't you think? Let's scale that back some, huh?",
 						ExceptionType.RangeException, t);
 			}
-			MCLocation l = null;
-			if (env.getEnv(CommandHelperEnvironment.class).GetCommandSender() instanceof MCPlayer) {
-				l = env.getEnv(CommandHelperEnvironment.class).GetPlayer().getLocation();
-			}
-			if (args.length > 2) {
-				if (args[2] instanceof CArray) {
-					CArray ca = (CArray) args[2];
-					l = ObjectGenerator.GetGenerator().location(ca, (l != null ? l.getWorld() : null), t);
-				} else {
-					throw new ConfigRuntimeException("Expected argument 3 to spawn_mob to be an array",
-							ExceptionType.CastException, t);
-				}
-			}
-			if (l.getWorld() != null) {
-				try{
-					return l.getWorld().spawnMob(MCMobs.valueOf(mob.toUpperCase().replaceAll(" ", "")), secondary, qty, l, t);
-				} catch(IllegalArgumentException e){
-					throw new ConfigRuntimeException("Invalid mob name: " + mob, ExceptionType.FormatException, t);
-				}
+			MCLocation l;
+			MCPlayer p = env.getEnv(CommandHelperEnvironment.class).GetPlayer();
+			if (args.length == 3) {
+				l = ObjectGenerator.GetGenerator().location(args[2], (p != null ? p.getWorld() : null), t);
+			} else if (p != null) {
+				l = p.getLocation();
 			} else {
-				throw new ConfigRuntimeException("World was not specified", ExceptionType.InvalidWorldException, t);
+				throw new ConfigRuntimeException("Invalid sender!", ExceptionType.PlayerOfflineException, t);
+			}
+			try{
+				return l.getWorld().spawnMob(MCMobs.valueOf(mob.toUpperCase().replaceAll(" ", "")), secondary, qty, l, t);
+			} catch(IllegalArgumentException e){
+				throw new ConfigRuntimeException("Invalid mob name: " + mob, ExceptionType.FormatException, t);
 			}
 		}
 	}
@@ -681,7 +679,8 @@ public class Minecraft {
 					+ "</li><li>6 - World container; The path to the world container.</li><li>7 - "
 					+ "Max player limit; returns the player limit.</li><li>8 - Operators; An array of operators on the server.</li>"
 					+ "<li>9 - Plugins; An array of plugins loaded by the server.</li>"
-					+ "<li>10 - Online Mode; If true, users are authenticated with Mojang before login</li></ul>";
+					+ "<li>10 - Online Mode; If true, users are authenticated with Mojang before login</li>"
+					+ "<li>11 - Server port; Get the game port that the server runs on</li></ul>";
 		}
 
 		public ExceptionType[] thrown() {
@@ -709,12 +708,12 @@ public class Minecraft {
 				index = Static.getInt32(args[0], t);
 			}
 
-			if (index < -1 || index > 10) {
-				throw new ConfigRuntimeException("get_server_info expects the index to be between -1 and 10 (inclusive)",
+			if (index < -1 || index > 11) {
+				throw new ConfigRuntimeException("get_server_info expects the index to be between -1 and 11 (inclusive)",
 						ExceptionType.RangeException, t);
 			}
 
-			assert index >= -1 && index <= 10; // Is this needed? Above statement should cause this to never be true. - entityreborn
+			assert index >= -1 && index <= 11; // Is this needed? Above statement should cause this to never be true. - entityreborn
 			ArrayList<Construct> retVals = new ArrayList<Construct>();
 
 			if (index == 0 || index == -1) {
@@ -782,6 +781,10 @@ public class Minecraft {
 			if (index == 10 || index == -1) {
 				//Online Mode
 				retVals.add(new CBoolean(server.getOnlineMode(), t));
+			}
+			if (index == 11 || index == -1) {
+				//Server port
+				retVals.add(new CInt(server.getPort(), t));
 			}
 
 			if (retVals.size() == 1) {
@@ -1123,6 +1126,22 @@ public class Minecraft {
 		}
 
 		public String docs() {
+			Class c;
+			try {
+				//Since MCColor actually depends on a bukkit server, we don't want to require that for
+				//the sake of documentation, so we'll build the color list much more carefully.
+				c = Class.forName(MCColor.class.getName(), false, this.getClass().getClassLoader());
+			} catch (ClassNotFoundException ex) {
+				//Hrm...
+				Logger.getLogger(Minecraft.class.getName()).log(Level.SEVERE, null, ex);
+				return "";
+			}
+			List<String> names = new ArrayList<String>();
+			for(Field f : c.getFields()){
+				if(f.getType() == MCColor.class){
+					names.add(f.getName());
+				}
+			}
 			return "void {locationArray, [optionsArray]} Launches a firework. The location array specifies where it is launched from,"
 					+ " and the options array is an associative array described below. All parameters in the associative array are"
 					+ " optional, and default to the specified values if not set. The default options being set will make it look like"
@@ -1148,7 +1167,7 @@ public class Minecraft {
 					+ "| type || An enum value of one of the firework types, one of: " + StringUtils.Join(MCFireworkType.values(), ", ", " or ")
 					+ " || " + MCFireworkType.BALL.name() + "\n"
 					+ "|}\n"
-					+ "The \"named colors\" can be one of: " + StringUtils.Join(MCColor.STANDARD_COLORS.keySet(), ", ", " or ");
+					+ "The \"named colors\" can be one of: " + StringUtils.Join(names, ", ", " or ");
 		}
 
 		public CHVersion since() {
@@ -1333,6 +1352,127 @@ public class Minecraft {
 
 		public Version since() {
 			return CHVersion.V3_3_1;
+		}
+	}
+	
+	@api(environments={CommandHelperEnvironment.class})
+    public static class drop_item extends AbstractFunction {
+
+        public String getName() {
+            return "drop_item";
+        }
+
+        public Integer[] numArgs() {
+            return new Integer[]{1, 2, 3};
+        }
+
+		public String docs() {
+			return "int {[player/LocationArray], item, [spawnNaturally]} Drops the specified item stack at the specified player's feet (or "
+					+ " at an arbitrary Location, if an array is given), and returns its entity id"
+					+ " Like the vanilla /give command. player defaults to the current player, and qty defaults to 1."
+					+ " item takes an item array."
+					+ " spawnNaturally takes a boolean, which forces the way the item will be spawned. If true, the item will be dropped with a random offset.";
+		}
+
+        public ExceptionType[] thrown() {
+            return new ExceptionType[]{ExceptionType.CastException, ExceptionType.FormatException, ExceptionType.PlayerOfflineException, ExceptionType.InvalidWorldException};
+        }
+
+        public boolean isRestricted() {
+            return true;
+        }
+        public CHVersion since() {
+            return CHVersion.V3_2_0;
+        }
+
+        public Boolean runAsync() {
+            return false;
+        }
+
+        public Construct exec(Target t, Environment env, Construct... args) throws ConfigRuntimeException {
+			MCLocation l;
+            MCItemStack is;
+            boolean natural;
+			if (args.length == 1) {
+				if (env.getEnv(CommandHelperEnvironment.class).GetPlayer() != null) {
+					l = env.getEnv(CommandHelperEnvironment.class).GetPlayer().getEyeLocation();
+					natural = false;
+				} else {
+					throw new ConfigRuntimeException("Invalid sender!", ExceptionType.PlayerOfflineException, t);
+				}
+				is = ObjectGenerator.GetGenerator().item(args[0], t);
+			} else {
+				MCPlayer p;
+				if (args[0] instanceof CArray) {
+					p = env.getEnv(CommandHelperEnvironment.class).GetPlayer();
+					l = ObjectGenerator.GetGenerator().location(args[0], (p != null ? p.getWorld() : null), t);
+					natural = true;
+				} else {
+					p = Static.GetPlayer(args[0].val(), t);
+					Static.AssertPlayerNonNull(p, t);
+					l = p.getEyeLocation();
+					natural = false;
+				}
+				is = ObjectGenerator.GetGenerator().item(args[1], t);
+			}
+			if (args.length == 3) {
+				natural = Static.getBoolean(args[2]);
+			}
+			MCItem item;
+			if (natural) {
+				item = l.getWorld().dropItemNaturally(l, is);
+			} else {
+				item = l.getWorld().dropItem(l, is);
+			}
+			if (item != null) {
+				return new CInt(item.getEntityId(), t);
+			} else {
+				return new CNull(t);
+			}
+        }
+    }
+
+	@api
+	public static class shutdown_server extends AbstractFunction implements Optimizable {
+
+		public String getName() {
+			return "shutdown_server";
+		}
+
+		public Integer[] numArgs() {
+			return new Integer[]{0};
+		}
+
+		public ExceptionType[] thrown() {
+			return new ExceptionType[]{};
+		}
+
+		public boolean isRestricted() {
+			return true;
+		}
+
+		public Boolean runAsync() {
+			return false;
+		}
+
+		public String docs() {
+			return "nothing {} Shuts down the server.";
+		}
+
+		public Version since() {
+			return CHVersion.V3_3_1;
+		}
+
+		public Construct exec(Target t, Environment environment, Construct... args) throws CancelCommandException {
+			Static.getServer().shutdown();
+			throw new CancelCommandException("", t);
+		}
+
+		@Override
+		public Set<OptimizationOption> optimizationOptions() {
+			return EnumSet.of(
+				OptimizationOption.TERMINAL
+			);
 		}
 	}
 }

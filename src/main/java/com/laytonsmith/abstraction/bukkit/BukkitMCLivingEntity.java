@@ -1,6 +1,6 @@
 package com.laytonsmith.abstraction.bukkit;
 
-import com.laytonsmith.PureUtilities.ReflectionUtils;
+import com.laytonsmith.PureUtilities.Common.ReflectionUtils;
 import com.laytonsmith.abstraction.MCEntity;
 import com.laytonsmith.abstraction.MCEntityEquipment;
 import com.laytonsmith.abstraction.MCLivingEntity;
@@ -114,6 +114,10 @@ public class BukkitMCLivingEntity extends BukkitMCEntity implements MCLivingEnti
 		}
 
 		return retn;
+	}
+
+	public boolean hasLineOfSight(MCEntity other) {
+		return le.hasLineOfSight(((BukkitMCEntity) other).asEntity());
 	}
 
 	public int getMaximumAir() {

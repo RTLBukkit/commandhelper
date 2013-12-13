@@ -9,6 +9,7 @@ import com.laytonsmith.core.environments.Environment;
 import com.laytonsmith.core.environments.GlobalEnv;
 import com.laytonsmith.core.exceptions.CancelCommandException;
 import com.laytonsmith.core.exceptions.ConfigRuntimeException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -231,7 +232,17 @@ public class Exceptions {
 		 * function recurses too deeply.
 		 */
 		StackOverflowError("Thrown if a stack overflow error happens. This can occur if a"
-				+ " function recurses too deeply.", CHVersion.V3_3_1)
+				+ " function recurses too deeply.", CHVersion.V3_3_1),
+		
+		/**
+		 * Thrown if a shell exception occurs.
+		 */
+		ShellException("Thrown if a shell exception occurs.", CHVersion.V3_3_1),
+		
+		/**
+		 * Thrown if an SQL related exception occurs.
+		 */
+		SQLException("Thrown if an SQL related exception occurs.", CHVersion.V3_3_1)
 
 		;
 		
@@ -253,6 +264,12 @@ public class Exceptions {
 		public CHVersion since() {
 			return since;
 		}
+
+		@Override
+		public URL getSourceJar() {
+			return null;
+		}
+		
 	}
 
 	@api(environments=CommandHelperEnvironment.class)

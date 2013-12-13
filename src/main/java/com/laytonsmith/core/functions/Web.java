@@ -1,7 +1,7 @@
 package com.laytonsmith.core.functions;
 
-import com.laytonsmith.PureUtilities.StackTraceUtils;
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.StackTraceUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.PureUtilities.Web.Cookie;
 import com.laytonsmith.PureUtilities.Web.CookieJar;
@@ -34,6 +34,7 @@ import com.laytonsmith.core.exceptions.FunctionReturnException;
 import com.laytonsmith.core.exceptions.ProgramFlowManipulationException;
 import com.laytonsmith.core.functions.Exceptions.ExceptionType;
 import com.laytonsmith.tools.docgen.DocGenTemplates;
+import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
@@ -52,8 +53,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  *
@@ -89,11 +88,8 @@ public class Web {
 			c.set("domain", cookie.getDomain());
 			c.set("path", cookie.getPath());
 			c.set("expiration", new CInt(cookie.getExpiration(), t), t);
-			if(!cookie.isHttpOnly() && !cookie.isSecureOnly()){
-				c.set("httpOnly", new CNull(t), t);
-			} else {
-				c.set("httpOnly", new CBoolean(cookie.isHttpOnly(), t), t);
-			}
+			c.set("httpOnly", new CBoolean(cookie.isHttpOnly(), t), t);
+			c.set("secureOnly", new CBoolean(cookie.isSecureOnly(), t), t);
 			if(!update){
 				ret.push(c);
 			}
@@ -109,7 +105,8 @@ public class Web {
 			String domain;
 			String path;
 			long expiration = 0;
-			Boolean httpOnly = null;
+			boolean httpOnly = false;
+			boolean secureOnly = false;
 			if(cookie.containsKey("name") && cookie.containsKey("value")
 					&& cookie.containsKey("domain") && cookie.containsKey("path")){
 				name = cookie.get("name").val();
@@ -124,13 +121,12 @@ public class Web {
 				expiration = Static.getInt(cookie.get("expiration"), t);
 			}
 			if(cookie.containsKey("httpOnly")){
-				if(cookie.get("expiration") instanceof CNull){
-					httpOnly = null;
-				} else {
-					httpOnly = Static.getBoolean(cookie.get("expiration"));
-				}
+				httpOnly = Static.getBoolean(cookie.get("httpOnly"));
 			}
-			Cookie c = new Cookie(name, value, domain, path, expiration, httpOnly);
+			if(cookie.containsKey("secureOnly")){
+				secureOnly = Static.getBoolean(cookie.get("secureOnly"));
+			}
+			Cookie c = new Cookie(name, value, domain, path, expiration, httpOnly, secureOnly);
 			ret.addCookie(c);
 		}
 		return ret;
@@ -312,6 +308,21 @@ public class Web {
 					Proxy proxy = new Proxy(type, addr);
 					settings.setProxy(proxy);
 				}
+				if(csettings.containsKey("download")){
+					Construct download = csettings.get("download");
+					if(download instanceof CNull){
+						settings.setDownloadTo(null);
+					} else {
+						//TODO: Remove this check and tie into the VFS once that is complete.
+						if(Cmdline.inCmdLine(environment)){
+							File file = new File(download.val());
+							if(!file.isAbsolute()){
+								file = new File(t.file(), file.getPath());
+							}
+							settings.setDownloadTo(file);
+						}
+					}
+				}
 				settings.setAuthenticationDetails(username, password);
 			}
 			environment.getEnv(GlobalEnv.class).GetDaemonManager().activateThread(null);
@@ -426,7 +437,7 @@ public class Web {
 					+ "))\n", "gws"),
 				new ExampleScript("Using a cookie jar", "@cookiejar = array()\n"
 					+ "http_request('http://www.google.com', array(\n"
-					+ "\tsuccess: closure(@resp,\n"
+					+ "\tcookiejar: @cookiejar, success: closure(@resp,\n"
 					+ "\t\tmsg(@cookiejar)\n"
 					+ "\t)\n"
 					+ "))\n", "<cookie jar would now have cookies in it>")

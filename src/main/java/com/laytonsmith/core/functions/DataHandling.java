@@ -1116,6 +1116,59 @@ public class DataHandling {
 	}
 
 	@api
+	public static class is_bytearray extends AbstractFunction implements Optimizable {
+
+		public String getName() {
+			return "is_bytearray";
+		}
+
+		public Integer[] numArgs() {
+			return new Integer[]{1};
+		}
+
+		public String docs() {
+			return "boolean {item} Returns whether or not the item is actually a ByteArray datatype.";
+		}
+
+		public ExceptionType[] thrown() {
+			return null;
+		}
+
+		public boolean isRestricted() {
+			return false;
+		}
+
+		public CHVersion since() {
+			return CHVersion.V3_3_1;
+		}
+
+		public Boolean runAsync() {
+			return null;
+		}
+
+		public Construct exec(Target t, Environment env, Construct... args) throws ConfigRuntimeException {
+			return new CBoolean((args[0] instanceof CByteArray), t);
+		}
+
+		@Override
+		public Set<OptimizationOption> optimizationOptions() {
+			return EnumSet.of(
+						OptimizationOption.CONSTANT_OFFLINE,
+						OptimizationOption.CACHE_RETURN
+			);
+		}
+		
+		@Override
+		public ExampleScript[] examples() throws ConfigCompileException {
+			return new ExampleScript[]{
+				new ExampleScript("True condition", "is_bytearray(string_get_bytes('yay'))"),
+				new ExampleScript("False condition", "is_bytearray('Nay')"),
+				new ExampleScript("False condition", "is_bytearray(123)"),
+			};
+		}
+	}
+
+	@api
 	public static class is_array extends AbstractFunction implements Optimizable {
 
 		public String getName() {
@@ -1559,13 +1612,16 @@ public class DataHandling {
 			String name = "";
 			List<IVariable> vars = new ArrayList<IVariable>();
 			ParseTree tree = null;
+			List<String> varNames = new ArrayList<String>();
 			boolean usesAssign = false;
 			for (int i = 0; i < nodes.length; i++) {
 				if (i == nodes.length - 1) {
 					tree = nodes[i];
 				} else {
+					boolean thisNodeIsAssign = false;
 					if (nodes[i].getData() instanceof CFunction) {
 						if (((CFunction) nodes[i].getData()).getValue().equals("assign")) {
+							thisNodeIsAssign = true;
 							if (nodes[i].getChildAt(1).getData().isDynamic()) {
 								usesAssign = true;
 							}
@@ -1584,8 +1640,21 @@ public class DataHandling {
 								IVariable ivar = null;
 								try {
 									Construct c = cons;
+									if(c instanceof IVariable){
+										String varName = ((IVariable)c).getName();
+										if(varNames.contains(varName)){
+											throw new ConfigRuntimeException("Same variable name defined twice in " + name, ExceptionType.InvalidProcedureException, t);
+										}
+										varNames.add(varName);
+									}
 									while (c instanceof IVariable) {
 										c = env.getEnv(GlobalEnv.class).GetVarList().get(((IVariable) c).getName(), t).ival();
+									}
+									if(!thisNodeIsAssign){
+										//This is required because otherwise a default value that's already in the environment
+										//would end up getting set to the existing value, thereby leaking in the global env
+										//into this proc, if the call to the proc didn't have a value in this slot.
+										c = new CString("", t);
 									}
 									ivar = new IVariable(((IVariable) cons).getName(), c.clone(), t);
 								} catch (CloneNotSupportedException ex) {
@@ -1659,6 +1728,7 @@ public class DataHandling {
 				return null;
 			}
 		}
+
 //        @Override
 //        public boolean canOptimizeDynamic() {
 //            return true;
@@ -1670,7 +1740,12 @@ public class DataHandling {
 //            //if we are assigning a dynamic value as a default, but we have to check
 //            //that here. If we don't, we lose the information
 //            return ;
-//        }                
+//        }        
+		@Override
+		public boolean allowBraces() {
+			return true;
+		}
+		
 	}
 
 	@api
@@ -2611,7 +2686,7 @@ public class DataHandling {
 	@api public static class to_radix extends AbstractFunction {
 
 		public ExceptionType[] thrown() {
-			return new ExceptionType[]{ExceptionType.CastException};
+			return new ExceptionType[]{ExceptionType.CastException, ExceptionType.RangeException, ExceptionType.FormatException};
 		}
 
 		public boolean isRestricted() {
@@ -2623,7 +2698,11 @@ public class DataHandling {
 		}
 
 		public Construct exec(Target t, Environment environment, Construct... args) throws ConfigRuntimeException {
-			return new CString(Long.toString(Static.getInt(args[0], t), Static.getInt32(args[1], t)), t);
+			int radix = Static.getInt32(args[1], t);
+			if(radix < Character.MIN_RADIX || radix > Character.MAX_RADIX){
+				throw new Exceptions.RangeException("The radix must be between " + Character.MIN_RADIX + " and " + Character.MAX_RADIX + ", inclusive.", t);
+			}
+			return new CString(Long.toString(Static.getInt(args[0], t), radix), t);
 		}
 
 		public String getName() {
@@ -2640,11 +2719,14 @@ public class DataHandling {
 					+ " instance. ---- It is useful to note that all integers are stored internally by the computer as binary,"
 					+ " but since we usually represent numbers in text as base 10 numbers, we often times forget that both"
 					+ " base 16 'F' and base 10 '15' and base 2 '1111' are actually the same number, just represented differently"
-					+ " in different bases. This doesn't change how the program behaves, since the base is just a way to represent"
+					+ " as strings in different bases. This doesn't change how the program behaves, since the base is just a way to represent"
 					+ " the number on paper. The 'radix' is the base. So, given to_radix(10, 10), that would return '10', because"
 					+ " in code, we wrote out our value '10' in base 10, and we convert it to base 10, so nothing changes. However,"
 					+ " if we write to_radix(15, 16) we are saying \"convert the base 10 value 15 to base 16\", so it returns 'F'."
-					+ " See {{function|parse_int}} for the opposite operation.";
+					+ " See {{function|parse_int}} for the opposite operation. The radix must be between " + Character.MIN_RADIX + " and "
+					+ Character.MAX_RADIX + ", inclusive, or a range exception is thrown. This is because there are only " + Character.MAX_RADIX
+					+ " characters that are normally used to represent different base numbers (that is, 0-9, a-z). The minimum radix is "
+					+ Character.MIN_RADIX + ", because it is impossible to represent any numbers with out at least a binary base.";
 		}
 
 		public Version since() {
@@ -2663,7 +2745,7 @@ public class DataHandling {
 	@api public static class parse_int extends AbstractFunction {
 
 		public ExceptionType[] thrown() {
-			return new ExceptionType[]{ExceptionType.CastException};
+			return new ExceptionType[]{ExceptionType.CastException, ExceptionType.RangeException, ExceptionType.FormatException};
 		}
 
 		public boolean isRestricted() {
@@ -2675,7 +2757,19 @@ public class DataHandling {
 		}
 
 		public Construct exec(Target t, Environment environment, Construct... args) throws ConfigRuntimeException {
-			return new CInt(Long.parseLong(args[0].val(), Static.getInt32(args[1], t)), t);
+			String value = args[0].val();
+			int radix = Static.getInt32(args[1], t);
+			if(radix < Character.MIN_RADIX || radix > Character.MAX_RADIX){
+				throw new Exceptions.RangeException("The radix must be between " + Character.MIN_RADIX + " and " + Character.MAX_RADIX + ", inclusive.", t);
+			}
+			long ret;
+			try{
+				ret = Long.parseLong(value, radix);
+			} catch(NumberFormatException ex){
+				throw new Exceptions.FormatException("The input string: \"" + value + "\" is improperly formatted. (Perhaps you're using a character greater than"
+						+ " the radix specified?)", t);
+			}
+			return new CInt(ret, t);
 		}
 
 		public String getName() {
@@ -2688,7 +2782,8 @@ public class DataHandling {
 
 		public String docs() {
 			return "int {value, radix} Converts a string representation of an integer to a real integer, given the value's"
-					+ " radix (base). See {{function|to_radix}} for a more detailed explanation of number theory.";
+					+ " radix (base). See {{function|to_radix}} for a more detailed explanation of number theory. Radix must be"
+					+ " between " + Character.MIN_RADIX + " and " + Character.MAX_RADIX + ", inclusive.";
 		}
 
 		public Version since() {

@@ -1,6 +1,6 @@
 package com.laytonsmith.core.functions;
 
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.abstraction.MCCommandSender;
 import com.laytonsmith.abstraction.MCLocation;
@@ -14,6 +14,7 @@ import com.laytonsmith.abstraction.enums.MCBiomeType;
 import com.laytonsmith.abstraction.enums.MCInstrument;
 import com.laytonsmith.abstraction.enums.MCSound;
 import com.laytonsmith.abstraction.enums.MCTone;
+import com.laytonsmith.abstraction.enums.MCTreeType;
 import com.laytonsmith.annotations.api;
 import com.laytonsmith.annotations.noboilerplate;
 import com.laytonsmith.core.*;
@@ -621,7 +622,6 @@ public class Environment {
 
 		public Construct exec(Target t, com.laytonsmith.core.environments.Environment env, Construct... args) throws CancelCommandException, ConfigRuntimeException {
 			double x = 0;
-			double y = 0;
 			double z = 0;
 			MCWorld w = null;
 			String world = null;
@@ -645,22 +645,13 @@ public class Environment {
 					world = args[2].val();
 				}
 			}
-
-
 			if (world != null) {
 				w = Static.getServer().getWorld(world);
 			}
 			if (w == null) {
 				throw new ConfigRuntimeException("The specified world " + world + " doesn't exist", ExceptionType.InvalidWorldException, t);
 			}
-			x = java.lang.Math.floor(x);
-			y = java.lang.Math.floor(y) - 1;
-			z = java.lang.Math.floor(z);
-			MCBlock b = w.getHighestBlockAt((int) x, (int) z);
-			return new CArray(t,
-					new CInt(b.getX(), t),
-					new CInt(b.getY(), t),
-					new CInt(b.getZ(), t));
+			return ObjectGenerator.GetGenerator().location(w.getHighestBlockAt((int) java.lang.Math.floor(x), (int) java.lang.Math.floor(z)).getLocation(), false);
 		}
 
 		public Boolean runAsync() {
@@ -1078,6 +1069,55 @@ public class Environment {
 			}
 			MCLocation loc = ObjectGenerator.GetGenerator().location(args[0], w, t);
 			return new CBoolean(loc.getBlock().isBlockPowered(), t);
+		}
+	}
+
+	@api
+	public static class generate_tree extends AbstractFunction {
+
+		public String getName() {
+			return "generate_tree";
+		}
+
+		public Integer[] numArgs() {
+			return new Integer[]{1, 2};
+		}
+
+		public ExceptionType[] thrown() {
+			return new ExceptionType[]{ExceptionType.CastException, ExceptionType.BadEntityException, ExceptionType.FormatException};
+		}
+
+		public boolean isRestricted() {
+			return true;
+		}
+
+		public Boolean runAsync() {
+			return false;
+		}
+
+		public String docs() {
+			return "boolean {locationArray, [treeType]} Generates a tree at the given location and returns if the generation succeeded or not."
+					+ " treeType can be " + StringUtils.Join(MCTreeType.values(), ", ", ", or ", " or ") + ", defaulting to TREE.";
+		}
+
+		public Version since() {
+			return CHVersion.V3_3_1;
+		}
+
+		public Construct exec(Target t, com.laytonsmith.core.environments.Environment environment, Construct... args) throws ConfigRuntimeException {
+			MCTreeType treeType;
+			if (args.length == 1) {
+				treeType = MCTreeType.TREE;
+			} else {
+				try {
+					treeType = MCTreeType.valueOf(args[1].val().toUpperCase());
+				} catch (IllegalArgumentException exception) {
+					throw new ConfigRuntimeException("The tree type \"" + args[1].val() + "\" does not exist.", ExceptionType.FormatException, t);
+				}
+			}
+			MCPlayer psender = environment.getEnv(CommandHelperEnvironment.class).GetPlayer();
+			MCLocation location = ObjectGenerator.GetGenerator().location(args[0], (psender != null ? psender.getWorld() : null), t);
+			return new CBoolean(location.getWorld().generateTree(location, treeType), t);
 		}
 	}
 }

@@ -2,11 +2,11 @@ package com.laytonsmith.core;
 
 import com.laytonsmith.PureUtilities.ArgumentParser;
 import com.laytonsmith.PureUtilities.ArgumentSuite;
-import com.laytonsmith.PureUtilities.ClassDiscovery;
-import com.laytonsmith.PureUtilities.ClassDiscoveryCache;
-import com.laytonsmith.PureUtilities.FileUtility;
-import com.laytonsmith.PureUtilities.StringUtils;
-import com.laytonsmith.PureUtilities.Util;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscovery;
+import com.laytonsmith.PureUtilities.ClassLoading.ClassDiscoveryCache;
+import com.laytonsmith.PureUtilities.Common.FileUtil;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
+import com.laytonsmith.PureUtilities.Common.Misc;
 import com.laytonsmith.PureUtilities.ZipReader;
 import com.laytonsmith.abstraction.Implementation;
 import com.laytonsmith.annotations.api;
@@ -15,14 +15,17 @@ import com.laytonsmith.core.exceptions.ConfigCompileException;
 import com.laytonsmith.core.functions.FunctionBase;
 import com.laytonsmith.core.functions.FunctionList;
 import com.laytonsmith.persistance.PersistanceNetwork;
-import com.laytonsmith.persistance.SerializedPersistance;
 import com.laytonsmith.persistance.io.ConnectionMixinFactory;
 import com.laytonsmith.tools.*;
 import com.laytonsmith.tools.docgen.DocGen;
+import com.laytonsmith.tools.docgen.DocGenExportTool;
 import com.laytonsmith.tools.docgen.DocGenUI;
+import com.laytonsmith.tools.docgen.ExtensionDocGen;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,8 +38,6 @@ import org.yaml.snakeyaml.Yaml;
  * @author Layton
  */
 public class Main {
-
-	static List<String> doctypes = new ArrayList<String>(Arrays.asList(new String[]{"html", "wiki", "text"}));
 
 	public static final ArgumentSuite ARGUMENT_SUITE;
 	private static final ArgumentParser helpMode;
@@ -56,6 +57,8 @@ public class Main {
 	private static final ArgumentParser examplesMode;
 	private static final ArgumentParser optimizerTestMode;
 	private static final ArgumentParser cmdlineMode;
+	private static final ArgumentParser extensionDocsMode;
+	private static final ArgumentParser docExportMode;
 
 	static {
 		MethodScriptFileLocations.setDefault(new MethodScriptFileLocations());
@@ -92,7 +95,7 @@ public class Main {
 		suite.addMode("print-db", printDBMode);
 		docsMode = ArgumentParser.GetParser()
 				.addDescription("Prints documentation for the functions that CommandHelper knows about, then exits.")
-				.addArgument("html", "The type of the documentation, defaulting to html. It may be one of the following: " + doctypes.toString(), "type", false);
+				.addArgument("html", "The type of the documentation, defaulting to html. It may be one of the following: " + StringUtils.Join(DocGen.MarkupType.values(), ", ", ", or "), "type", false);
 		suite.addMode("docs", docsMode);
 		verifyMode = ArgumentParser.GetParser()
 				.addDescription("Compiles all the files in the system, simply checking for compile errors, then exits.");
@@ -130,6 +133,17 @@ public class Main {
 				+ " file is known.")
 				.addArgument("File path/arguments", "fileAndArgs", true);
 		suite.addMode("cmdline", cmdlineMode);
+		extensionDocsMode = ArgumentParser.GetParser()
+				.addDescription("Generates markdown documentation for the specified extension utilizing its code, to be used most likely on the extensions github page.")
+				.addArgument('i', "input-jar", ArgumentParser.Type.STRING, "The extension jar to generate doucmenation for.", "input-jar", true)
+				.addArgument('o', "output-file", ArgumentParser.Type.STRING, "The file to output the generated documentation to.", "output-file", false);
+		suite.addMode("extension-docs", extensionDocsMode);
+		docExportMode = ArgumentParser.GetParser()
+				.addDescription("Outputs all known function documentation as a json. This includes known extensions"
+						+ " as well as the built in functions.")
+				.addArgument("extension-dir", ArgumentParser.Type.STRING, "./CommandHelper/extensions", "Provides the path to your extension directory, if not the default, \"./CommandHelper/extensions\"", "extension-dir", false)
+				.addArgument('o', "output-file", ArgumentParser.Type.STRING, "The file to output the generated json to. If this parameter is missing, it is simply printed to screen.", "output-file", false);
+		suite.addMode("doc-export", docExportMode);
 
 		ARGUMENT_SUITE = suite;
 	}
@@ -210,28 +224,26 @@ public class Main {
 						+ "CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.");
 				System.exit(0);
 			} else if (mode == printDBMode) {
-				//FIXME: This is using the wrong thing.
 				ConnectionMixinFactory.ConnectionMixinOptions options = new ConnectionMixinFactory.ConnectionMixinOptions();
 				options.setWorkingDirectory(MethodScriptFileLocations.getDefault().getConfigDirectory());
-				PersistanceNetwork pn = new PersistanceNetwork(new File(MethodScriptFileLocations.getDefault().getConfigDirectory(),
-						"persistance.config"), new URI("sqlite://" + new File(MethodScriptFileLocations.getDefault().getConfigDirectory(),
-						"persistance.db").getCanonicalPath()), options);
+				PersistanceNetwork pn = new PersistanceNetwork(MethodScriptFileLocations.getDefault().getPersistanceConfig(),
+						new URI("sqlite://" + MethodScriptFileLocations.getDefault().getDefaultPersistanceDBFile().getCanonicalPath()
+								//This replace is required on Windows.
+								.replace("\\", "/")), options);
 				Map<String[], String> values = pn.getNamespace(new String[]{});
 				for(String [] s : values.keySet()){
-					System.out.println(Arrays.toString(s));
+					System.out.println(StringUtils.Join(s, ".") + "=" + values.get(s));
 				}
-				//new SerializedPersistance(new File("CommandHelper/persistance.ser")).printValues(System.out);
 				System.exit(0);
 			} else if (mode == docsMode) {
-				String docs = parsedArgs.getStringArgument();
+				DocGen.MarkupType docs = null;
+				try {
+					docs = DocGen.MarkupType.valueOf(parsedArgs.getStringArgument().toUpperCase());
+				} catch(IllegalArgumentException e){
+					System.out.println("The type of documentation must be one of the following: " + StringUtils.Join(DocGen.MarkupType.values(), ", ", ", or "));
+					System.exit(1);
+				}
 				//Documentation generator
-				if (docs.isEmpty()) {
-					docs = "html";
-				}
-				if (!doctypes.contains(docs)) {
-					System.out.println("The type of documentation must be one of the following: " + doctypes.toString());
-					return;
-				}
 				System.err.print("Creating " + docs + " documentation...");
 				DocGen.functions(docs, api.Platforms.INTERPRETER_JAVA, true);
 				System.err.println("Done.");
@@ -293,7 +305,7 @@ public class Main {
 				CHLog.initialize(MethodScriptFileLocations.getDefault().getJarDirectory());
 				String path = parsedArgs.getStringArgument();
 				File source = new File(path);
-				String plain = FileUtility.read(source);
+				String plain = FileUtil.read(source);
 				Security.setSecurityEnabled(false);
 				String optimized = OptimizationUtilities.optimize(plain, source);
 				System.out.println(optimized);
@@ -313,7 +325,12 @@ public class Main {
 					System.out.println(ARGUMENT_SUITE.getModeFromName(modeForHelp).getBuiltDescription());
 				}
 			} else if(mode == cmdlineMode){
-				List<String> allArgs = parsedArgs.getStringListArgument();
+				//We actually can't use the parsedArgs, because there may be cmdline switches in
+				//the arguments that we want to ignore here, but otherwise pass through. parsedArgs
+				//will prevent us from seeing those, however.
+				List<String> allArgs = new ArrayList<String>(Arrays.asList(args));
+				//The 0th arg is the cmdline verb though, so remove that.
+				allArgs.remove(0);
 				if(allArgs.isEmpty()){
 					System.err.println("Usage: path/to/file.ms [arg1 arg2]");
 					System.exit(1);
@@ -322,6 +339,44 @@ public class Main {
 				allArgs.remove(0);
 				Interpreter.startWithTTY(fileName, allArgs);
 				System.exit(0);
+			} else if(mode == extensionDocsMode){
+				String inputJarS = parsedArgs.getStringArgument("input-jar");
+				String outputFileS = parsedArgs.getStringArgument("output-file");
+				if(inputJarS == null){
+					System.out.println("Usage: --input-jar extension-docs path/to/extension.jar [--output-file path/to/output.md]\n\tIf the output is blank, it is printed to stdout.");
+					System.exit(1);
+				}
+				File inputJar = new File(inputJarS);
+				OutputStream outputFile = System.out;
+				if(outputFileS != null){
+					outputFile = new FileOutputStream(new File(outputFileS));
+				}
+				ExtensionDocGen.generate(inputJar, outputFile);
+			} else if(mode == docExportMode){
+				String extensionDirS = parsedArgs.getStringArgument("extension-dir");
+				String outputFileS = parsedArgs.getStringArgument("output-file");
+				OutputStream outputFile = System.out;
+				if(outputFileS != null){
+					outputFile = new FileOutputStream(new File(outputFileS));
+				}
+				Implementation.useAbstractEnumThread(false);
+				Implementation.setServerType(Implementation.Type.BUKKIT);
+				ClassDiscovery cd = ClassDiscovery.getDefaultInstance();
+				cd.addDiscoveryLocation(ClassDiscovery.GetClassContainer(Main.class));
+				File extensionDir = new File(extensionDirS);
+				if(extensionDir.exists()){
+					//Might not exist, but that's ok, however we will print a warning
+					//to stderr.
+					for(File f : extensionDir.listFiles()){
+						if(f.getName().endsWith(".jar")){
+							cd.addDiscoveryLocation(f.toURI().toURL());
+						}
+					}
+				} else {
+					System.err.println("Extension directory specificed doesn't exist: " 
+							+ extensionDirS + ". Continuing anyways.");
+				}
+				new DocGenExportTool(cd, outputFile).export();
 			} else {
 				throw new Error("Should not have gotten here");
 			}
@@ -338,7 +393,7 @@ public class Main {
 				+ " and put it in the CommandHelper directory.";
 		if (Prefs.DebugMode()) {
 			ret += " If you're dying for more details, here:\n";
-			ret += Util.GetStacktrace(error);
+			ret += Misc.GetStacktrace(error);
 		}
 		return ret;
 	}

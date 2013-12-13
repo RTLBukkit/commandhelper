@@ -1,6 +1,6 @@
 package com.laytonsmith.core.functions;
 
-import com.laytonsmith.PureUtilities.StringUtils;
+import com.laytonsmith.PureUtilities.Common.StringUtils;
 import com.laytonsmith.PureUtilities.Version;
 import com.laytonsmith.abstraction.*;
 import com.laytonsmith.abstraction.blocks.MCBlock;
@@ -104,24 +104,33 @@ public class PlayerManagement {
 		}
 
 		public Integer[] numArgs() {
-			return new Integer[]{0};
+			return new Integer[]{0, 1};
 		}
 
 		public Construct exec(Target t, Environment env, Construct... args) throws CancelCommandException, ConfigRuntimeException {
-			MCPlayer[] pa = Static.getServer().getOnlinePlayers();
-			CString[] sa = new CString[pa.length];
-			for (int i = 0; i < pa.length; i++) {
-				sa[i] = new CString(pa[i].getName(), t);
+			CArray players = new CArray(t);
+			if (args.length == 0) {
+				for (MCPlayer player : Static.getServer().getOnlinePlayers()) {
+					players.push(new CString(player.getName(), t));
+				}
+			} else {
+				MCWorld world = Static.getServer().getWorld(args[0].val());
+				if (world == null) {
+					throw new ConfigRuntimeException("Unknown world: " + args[0].val(), ExceptionType.InvalidWorldException, t);
+				}
+				for (MCPlayer player : world.getPlayers()) {
+					players.push(new CString(player.getName(), t));
+				}
 			}
-			return new CArray(t, sa);
+			return players;
 		}
 
 		public String docs() {
-			return "array {} Returns an array of all the player names of all the online players on the server";
+			return "array {[world]} Returns an array of all the player names of all the online players on the server, if world is given only the name of the players in this world will be returned.";
 		}
 
 		public ExceptionType[] thrown() {
-			return new ExceptionType[]{};
+			return new ExceptionType[]{ExceptionType.InvalidWorldException};
 		}
 
 		public boolean isRestricted() {
@@ -238,27 +247,21 @@ public class PlayerManagement {
 		}
 
 		public Construct exec(Target t, Environment env, Construct... args) throws CancelCommandException, ConfigRuntimeException {
-			MCCommandSender p = env.getEnv(CommandHelperEnvironment.class).GetCommandSender();
-			MCPlayer m = null;
-			if (p instanceof MCPlayer) {
-				m = (MCPlayer) p;
+			MCPlayer p;
+			if (args.length == 0) {
+				p = env.getEnv(CommandHelperEnvironment.class).GetPlayer();
+				Static.AssertPlayerNonNull(p, t);
+			} else {
+				p = Static.GetPlayer(args[0], t);
 			}
-			if (args.length == 1) {
-				m = Static.GetPlayer(args[0], t);
-			}
-			Static.AssertPlayerNonNull(m, t);
-			MCLocation l = m.getLocation();
-			MCWorld w = m.getWorld();
-			return new CArray(t,
-					new CDouble(l.getX(), t),
-					new CDouble(l.getY() - 1, t),
-					new CDouble(l.getZ(), t),
-					new CString(w.getName(), t));
+			MCLocation location = p.getLocation();
+			location.setY(location.getY() - 1);
+			return ObjectGenerator.GetGenerator().location(location);
 		}
 
 		public String docs() {
 			return "array {[playerName]} Returns an array of x, y, z coords of the player specified, or the player running the command otherwise. Note that the y coordinate is"
-					+ " in relation to the block the player is standing on. The array returned will also include the player's world in index 3 of the array.";
+					+ " in relation to the block the player is standing on. The array returned will also include the player's world.";
 		}
 
 		public ExceptionType[] thrown() {
@@ -440,13 +443,10 @@ public class PlayerManagement {
 						ExceptionType.PluginInternalException, t);
 			}
 			if (b == null) {
-				throw new ConfigRuntimeException("No block in sight, or block too far",
-						ExceptionType.RangeException, t);
+				throw new ConfigRuntimeException("No block in sight, or block too far", ExceptionType.RangeException, t);
+			} else {
+				return ObjectGenerator.GetGenerator().location(b.getLocation(), false);
 			}
-			return new CArray(t, new CInt(b.getX(), t),
-					new CInt(b.getY(), t),
-					new CInt(b.getZ(), t),
-					new CString(b.getWorld().getName(), t));
 		}
 
 		public Boolean runAsync() {
@@ -456,13 +456,13 @@ public class PlayerManagement {
 		@Override
 		public ExampleScript[] examples() throws ConfigCompileException {
 			return new ExampleScript[]{
-					new ExampleScript("Demonstrates finding a non-air block", "msg(pcursor())", "{-127, 75, 798, world}"),
+					new ExampleScript("Demonstrates finding a non-air block", "msg(pcursor())", "{0: -127, 1: 75, 2: 798, 3: world, x: -127, y: 75, z: 798, world: world}"),
 					new ExampleScript("Demonstrates looking above the skyline", "msg(pcursor())",
 							"(Throws RangeException: No block in sight, or block too far)"),
 					new ExampleScript("Demonstrates getting your target while ignoring torches and bedrock",
-							"msg(pcursor(array(50, 7)))", "{-127, 75, 798, world}"),
+							"msg(pcursor(array(50, 7)))", "{0: -127, 1: 75, 2: 798, 3: world, x: -127, y: 75, z: 798, world: world}"),
 					new ExampleScript("Demonstrates getting Notch's target while ignoring air, water, and lava",
-							"msg(pcursor('Notch', array(0, 8, 9, 10, 11)))", "{-127, 75, 798, world}")
+							"msg(pcursor('Notch', array(0, 8, 9, 10, 11)))", "{0: -127, 1: 75, 2: 798, 3: world, x: -127, y: 75, z: 798, world: world}")
 			};
 		}
 	}
@@ -488,8 +488,7 @@ public class PlayerManagement {
 				p = Static.GetPlayer(args[0], t);
 			}
 			Static.AssertPlayerNonNull(p, t);
-			List<MCBlock> blocks = p.getLastTwoTargetBlocks(null, 10000);
-			return ObjectGenerator.GetGenerator().location(blocks.get(0).getLocation());
+			return ObjectGenerator.GetGenerator().location(p.getLastTwoTargetBlocks(null, 10000).get(0).getLocation(), false);
 		}
 
 		public String getName() {
@@ -661,7 +660,7 @@ public class PlayerManagement {
 					+ " <li>11 - Is sneaking?</li><li>12 - Host; The host the player connected to.</li>"
 					+ " <li>13 - Player's current entity id</li><li>14 - Is player in a vehicle? Returns true or false.</li>"
 					+ " <li>15 - The slot number of the player's current hand.</li>"
-					+ " <li>16 - Is sleeping?</li><li>17 - Is blocking?</li><li>18 - Is flying?</li>"
+					+ " <li>16 - Is sleeping?</li><li>17 - Is blocking?</li><li>18 - Is flying?</li><li>19 - Is sprinting?</li>"
 					+ " </ul>";
 		}
 
@@ -699,7 +698,7 @@ public class PlayerManagement {
 			MCPlayer p = Static.GetPlayer(player, t);
 
 			Static.AssertPlayerNonNull(p, t);
-			int maxIndex = 18;
+			int maxIndex = 19;
 			if (index < -1 || index > maxIndex) {
 				throw new ConfigRuntimeException(this.getName() + " expects the index to be between -1 and " + maxIndex,
 						ExceptionType.RangeException, t);
@@ -817,6 +816,9 @@ public class PlayerManagement {
 			}
 			if (index == 18 || index == -1) {
 				retVals.add(new CBoolean(p.isFlying(), t));
+			}
+			if (index == 19 || index == -1) {
+				retVals.add(new CBoolean(p.isSprinting(), t));
 			}
 			if (retVals.size() == 1) {
 				return retVals.get(0);
@@ -1191,7 +1193,7 @@ public class PlayerManagement {
 		}
 
 		public String docs() {
-			return "string {[player]} Returns the player's game mode. It will be one of \"CREATIVE\" or \"SURVIVAL\".";
+			return "string {[player]} Returns the player's game mode. It will be one of " + StringUtils.Join(MCGameMode.values(), ", ", ", or ") + ".";
 		}
 
 		public ExceptionType[] thrown() {
@@ -1275,7 +1277,7 @@ public class PlayerManagement {
 			try {
 				gm = MCGameMode.valueOf(mode.toUpperCase());
 			} catch (IllegalArgumentException e) {
-				throw new ConfigRuntimeException("Mode must be either 'CREATIVE', 'SURVIVAL', or 'ADVENTURE'", ExceptionType.FormatException, t);
+				throw new ConfigRuntimeException("Mode must be either " + StringUtils.Join(MCGameMode.values(), ", ", ", or "), ExceptionType.FormatException, t);
 			}
 			Static.AssertPlayerNonNull(m, t);
 			m.setGameMode(gm);
@@ -2192,7 +2194,7 @@ public class PlayerManagement {
 		}
 
 		public String docs() {
-			return "void {[player]} Gets the players speed. The speed must be between -1 or 1";
+			return "double {[player]} Gets the players speed. The speed must be between -1 or 1";
 		}
 
 		public ExceptionType[] thrown() {
@@ -2297,7 +2299,7 @@ public class PlayerManagement {
 		}
 
 		public String docs() {
-			return "void {[player]} Gets the players speed. The speed must be between -1 or 1";
+			return "double {[player]} Gets the players speed. The speed must be between -1 or 1";
 		}
 
 		public ExceptionType[] thrown() {
@@ -2463,7 +2465,7 @@ public class PlayerManagement {
 				m = Static.GetPlayer(args[0].val(), t);
 			}
 			Static.AssertPlayerNonNull(m, t);
-			return ObjectGenerator.GetGenerator().location(m.getCompassTarget());
+			return ObjectGenerator.GetGenerator().location(m.getCompassTarget(), false);
 		}
 	}
 
@@ -3385,21 +3387,11 @@ public class PlayerManagement {
 				player = Static.getServer().getOfflinePlayer(args[0].val());
 			}
 			MCLocation loc = player.getBedSpawnLocation();
-			MCWorld w;
-			try {
-				w = loc.getWorld();
-			} catch (Exception e) {
+			if (loc == null) {
 				return new CNull(t);
+			} else {
+				return ObjectGenerator.GetGenerator().location(loc, false);
 			}
-//			if (loc == null) {
-//				return new CNull(t);
-//			}
-//			MCWorld w = loc.getWorld();
-			return new CArray(t,
-					new CDouble(loc.getX(), t),
-					new CDouble(loc.getY(), t),
-					new CDouble(loc.getZ(), t),
-					new CString(w.getName(), t));
 		}
 
 		public String docs() {
@@ -3810,7 +3802,6 @@ public class PlayerManagement {
 					new ExampleScript("Demonstrates a player that has not played", "plast_played('Herobrine')", ":0")
 			};
 		}
-
 	}
 	
 	@api
@@ -3830,12 +3821,11 @@ public class PlayerManagement {
 
 		public Construct exec(Target t, Environment environment, Construct... args) throws ConfigRuntimeException {
 			int id = Static.getInt32(args[0], t);
-			for(MCPlayer p : StaticLayer.GetConvertor().GetServer().getOnlinePlayers()){
-				if(p.getEntityId() == id){
-					return new CString(p.getName(), t);
-				}
+			try {
+				return new CString(((MCPlayer) Static.getLivingEntity(id, t)).getName(), t);
+			} catch (Exception exception) {
+				return new CNull(t);
 			}
-			return new CNull();
 		}
 
 		public String getName() {
@@ -3854,6 +3844,5 @@ public class PlayerManagement {
 		public Version since() {
 			return CHVersion.V3_3_1;
 		}
-		
 	}
 }

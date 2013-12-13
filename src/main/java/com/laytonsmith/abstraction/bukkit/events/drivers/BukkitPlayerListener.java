@@ -145,6 +145,7 @@ public class BukkitPlayerListener implements Listener {
 					copy.setFormat(event.getFormat());
 					//event.setCancelled(true);
 					Future f = Bukkit.getServer().getScheduler().callSyncMethod(CommandHelperPlugin.self, new Callable() {
+						@Override
 						public Object call() throws Exception {
 							onPlayerChat(copy);
 							return null;
@@ -249,5 +250,12 @@ public class BukkitPlayerListener implements Listener {
 		BukkitPlayerEvents.BukkitMCExpChangeEvent e = new BukkitPlayerEvents.BukkitMCExpChangeEvent(event);
 		EventUtils.TriggerExternal(e);
 		EventUtils.TriggerListener(Driver.EXP_CHANGE, "exp_change", e);
+	}
+
+	@EventHandler(priority = EventPriority.LOWEST)
+	public void onPlayerEditBook(PlayerEditBookEvent event) {
+		BukkitPlayerEvents.BukkitMCPlayerEditBookEvent pebe = new BukkitPlayerEvents.BukkitMCPlayerEditBookEvent(event);
+		EventUtils.TriggerExternal(pebe);
+		EventUtils.TriggerListener(Driver.BOOK_EDITED, "book_edited", pebe);
 	}
 }

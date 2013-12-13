@@ -37,6 +37,7 @@ public interface MCServer extends AbstractionObject{
     public String getServerName();
     public String getModVersion();
     public String getVersion();
+	public int getPort();
     public Boolean getAllowEnd();
     public Boolean getAllowFlight();
     public Boolean getAllowNether();
@@ -59,6 +60,15 @@ public interface MCServer extends AbstractionObject{
 
     public void runasConsole(String cmd);
 	public MCMessenger getMessenger();
-	
+
 	public boolean unloadWorld(MCWorld world, boolean save);
+	
+	public boolean addRecipe(MCRecipe recipe);
+	public List<MCRecipe> getRecipesFor(MCItemStack result);
+	public List<MCRecipe> allRecipes();
+	public void clearRecipes();
+	public void resetRecipes();
+	
+
+	public void shutdown();
 }

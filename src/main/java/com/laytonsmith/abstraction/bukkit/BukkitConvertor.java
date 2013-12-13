@@ -11,6 +11,7 @@ import com.laytonsmith.abstraction.bukkit.entities.*;
 import com.laytonsmith.abstraction.bukkit.events.BukkitAbstractEventMixin;
 import com.laytonsmith.abstraction.bukkit.events.drivers.*;
 import com.laytonsmith.abstraction.enums.MCEntityType;
+import com.laytonsmith.abstraction.enums.MCRecipeType;
 import com.laytonsmith.abstraction.enums.MCTone;
 import com.laytonsmith.annotations.convert;
 import com.laytonsmith.commandhelper.CommandHelperPlugin;
@@ -30,11 +31,18 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.DoubleChest;
+import org.bukkit.command.BlockCommandSender;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.*;
 import org.bukkit.event.Listener;
+import org.bukkit.inventory.FurnaceRecipe;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.Recipe;
+import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.inventory.meta.*;
 import org.bukkit.material.MaterialData;
 
@@ -135,7 +143,7 @@ public class BukkitConvertor extends AbstractConvertor {
      * on accident, so only ids registered through our interface
      * can also be cancelled.
      */
-    private static Set<Integer> validIDs = new TreeSet<Integer>();
+    private static final Set<Integer> validIDs = new TreeSet<Integer>();
 
     public synchronized int SetFutureRunnable(DaemonManager dm, long ms, Runnable r) {
         int id = Bukkit.getServer().getScheduler().scheduleSyncDelayedTask(CommandHelperPlugin.self, r, Static.msToTicks(ms));
@@ -464,4 +472,59 @@ public class BukkitConvertor extends AbstractConvertor {
 		return pluginMeta;
 	}
 
+	@Override
+	public MCRecipe GetNewRecipe(MCRecipeType type, MCItemStack result) {
+		switch (type) {
+			case FURNACE:
+				return new BukkitMCFurnaceRecipe(result);
+			case SHAPED:
+				return new BukkitMCShapedRecipe(result);
+			case SHAPELESS:
+				return new BukkitMCShapelessRecipe(result);
+		}
+		return null;
+	}
+
+	@Override
+	public MCRecipe GetRecipe(MCRecipe unspecific) {
+		Recipe r = ((BukkitMCRecipe) unspecific).r;
+		return BukkitGetRecipe(r);
+	}
+
+	public static MCRecipe BukkitGetRecipe(Recipe r) {
+		if (r instanceof ShapelessRecipe) {
+			return new BukkitMCShapelessRecipe((ShapelessRecipe) r);
+		} else if (r instanceof ShapedRecipe) {
+			return new BukkitMCShapedRecipe((ShapedRecipe) r);
+		} else if (r instanceof FurnaceRecipe) {
+			return new BukkitMCFurnaceRecipe((FurnaceRecipe) r);
+		} else {
+			return null;
+		}
+	}
+	
+	@Override
+	public MCCommand getNewCommand(String name) {
+		return BukkitMCCommand.newCommand(name);
+	}
+	
+	@Override
+	public MCCommandSender GetCorrectSender(MCCommandSender unspecific) {
+		if (unspecific == null) {
+			return null;
+		}
+		return BukkitGetCorrectSender(((BukkitMCCommandSender) unspecific)._CommandSender());
+	}
+	
+	public static MCCommandSender BukkitGetCorrectSender(CommandSender sender) {
+		if (sender instanceof Player) {
+			return new BukkitMCPlayer((Player) sender);
+		} else if (sender instanceof ConsoleCommandSender) {
+			return new BukkitMCConsoleCommandSender((ConsoleCommandSender) sender);
+		} else if (sender instanceof BlockCommandSender) {
+			return new BukkitMCBlockCommandSender((BlockCommandSender) sender);
+		} else {
+			return null;
+		}
+	}
 }

@@ -11,6 +11,7 @@ import com.laytonsmith.core.constructs.CClosure;
 import com.laytonsmith.core.constructs.IVariableList;
 import com.laytonsmith.core.environments.Environment.EnvironmentImpl;
 import com.laytonsmith.core.profiler.Profiler;
+import com.laytonsmith.database.Profiles;
 import com.laytonsmith.persistance.PersistanceNetwork;
 import java.io.File;
 import java.util.HashMap;
@@ -38,8 +39,10 @@ public class GlobalEnv implements Environment.EnvironmentImpl, Cloneable {
 	private IVariableList iVariableList = null;
 	private String label = null;
 	private DaemonManager daemonManager = new DaemonManager();
+	private boolean dynamicScriptingMode = false;
+	private Profiles profiles;
 
-	public GlobalEnv(ExecutionQueue queue, Profiler profiler, PersistanceNetwork network, PermissionsResolver resolver, File root) {
+	public GlobalEnv(ExecutionQueue queue, Profiler profiler, PersistanceNetwork network, PermissionsResolver resolver, File root, Profiles profiles) {
 		Static.AssertNonNull(queue, "ExecutionQueue cannot be null");
 		Static.AssertNonNull(profiler, "Profiler cannot be null");
 		Static.AssertNonNull(network, "PersistanceNetwork cannot be null");
@@ -53,6 +56,7 @@ public class GlobalEnv implements Environment.EnvironmentImpl, Cloneable {
 		if (this.executionQueue instanceof MethodScriptExecutionQueue) {
 			((MethodScriptExecutionQueue) executionQueue).setEnvironment(this);
 		}
+		this.profiles = profiles;
 	}
 
 	public ExecutionQueue GetExecutionQueue() {
@@ -216,5 +220,29 @@ public class GlobalEnv implements Environment.EnvironmentImpl, Cloneable {
 	
 	public DaemonManager GetDaemonManager(){
 		return daemonManager;
+	}
+	
+	/**
+	 * Turns dynamic scripting mode on or off. If this is true, that means
+	 * that the script came from a dynamic source, such as eval, or other sources
+	 * other than the file system.
+	 * @param dynamicScriptingMode 
+	 */
+	public void SetDynamicScriptingMode(boolean dynamicScriptingMode){
+		this.dynamicScriptingMode = dynamicScriptingMode;
+	}
+	
+	/**
+	 * Returns whether or not dynamic script mode is on or off. If this is true, that means
+	 * that the script came from a dynamic source, such as eval, or other sources
+	 * other than the file system.
+	 * @return 
+	 */
+	public boolean GetDynamicScriptingMode(){
+		return this.dynamicScriptingMode;
+	}
+
+	public Profiles getSQLProfiles() {
+		return this.profiles;
 	}
 }
