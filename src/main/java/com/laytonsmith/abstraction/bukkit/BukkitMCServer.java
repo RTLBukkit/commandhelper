@@ -8,6 +8,8 @@ import com.laytonsmith.abstraction.pluginmessages.MCMessenger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import net.milkbowl.vault.chat.Chat;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -226,6 +228,20 @@ public class BukkitMCServer implements MCServer {
         return null;            
     }
 
+    public Chat getVaultChat() {
+      try{
+          @SuppressWarnings("unchecked")
+		RegisteredServiceProvider<Chat> chatProvider = (RegisteredServiceProvider<Chat>)
+                  s.getServicesManager().getRegistration(Class.forName("net.milkbowl.vault.chat.Chat"));
+          if (chatProvider != null) {
+              return chatProvider.getProvider();
+          }
+      } catch(ClassNotFoundException e){
+          //Ignored, it means they don't have Vault installed.
+      }
+      return null;            
+  }
+    
     public void runasConsole(String cmd) {
         s.dispatchCommand(s.getConsoleSender(), cmd);
     }

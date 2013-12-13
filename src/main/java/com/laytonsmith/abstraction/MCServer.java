@@ -4,6 +4,8 @@ import com.laytonsmith.abstraction.enums.MCInventoryType;
 import com.laytonsmith.abstraction.pluginmessages.MCMessenger;
 import java.util.List;
 import java.util.Set;
+
+import net.milkbowl.vault.chat.Chat;
 import net.milkbowl.vault.economy.Economy;
 
 
@@ -53,6 +55,7 @@ public interface MCServer extends AbstractionObject{
 	public MCScoreboard getNewScoreboard();
 
     public Economy getEconomy();
+    public Chat getVaultChat();
 
     public void runasConsole(String cmd);
 	public MCMessenger getMessenger();
