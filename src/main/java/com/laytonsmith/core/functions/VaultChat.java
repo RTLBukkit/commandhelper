@@ -47,7 +47,7 @@ public class VaultChat {
         }
       	  	
         private String getPrefix(String world){
-        	return chat.getPlayerPrefix(name, world);
+        	return chat.getPlayerPrefix(world, name);
         }
                 
     }
@@ -102,7 +102,9 @@ public class VaultChat {
 
         public Construct exec(Target t, Environment env, Construct... args) throws ConfigRuntimeException {
         	MCPlayer p = GetPlayer(t,env,args);
-          String prefix = new ChatWrapper(p.getName()).getPrefix(p.getWorld().getName());
+        	ChatWrapper wrap = new ChatWrapper(p.getName());
+        	String worldname = p.getWorld().getName();
+          String prefix =  wrap.getPrefix(worldname);
           if (prefix == null) return new CNull(t);
           else return new CString(prefix, t);
         }

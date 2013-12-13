@@ -22,6 +22,7 @@ import com.laytonsmith.core.exceptions.ProgramFlowManipulationException;
 import com.laytonsmith.core.functions.Economy;
 import com.laytonsmith.core.functions.IncludeCache;
 import com.laytonsmith.core.functions.Scheduling;
+import com.laytonsmith.core.functions.VaultChat;
 import com.laytonsmith.core.profiler.ProfilePoint;
 import com.laytonsmith.core.profiler.Profiler;
 import com.laytonsmith.database.Profiles;
@@ -475,6 +476,12 @@ public class AliasCore {
 			}
 		}
 		
+		if (!VaultChat.setupChat()) {
+			if (Prefs.DebugMode()) {
+				logger.log(Level.WARNING, "[CommandHelper]: VaultChat could not be initialized. No further"
+						+ " errors will occur, unless you try to use a VaultChat function.");
+			}
+		}
 		ExtensionManager.PostReloadAliases();
 	}
 
